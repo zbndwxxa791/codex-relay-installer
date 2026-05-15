@@ -19,7 +19,7 @@ Responses API 兼容中转服务。
 ### Windows PowerShell
 
 ```powershell
-$url = "https://raw.githubusercontent.com/YOUR_NAME/YOUR_REPO/main/install%20for%20Windows.ps1"
+$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Windows.ps1"
 $file = Join-Path $env:TEMP "install for Windows.ps1"
 Invoke-RestMethod $url -OutFile $file
 powershell -NoProfile -ExecutionPolicy Bypass -File $file
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $file
 ### Linux / macOS
 
 ```bash
-url="https://raw.githubusercontent.com/YOUR_NAME/YOUR_REPO/main/install%20for%20Linux%26macOS.sh"
+url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Linux%26macOS.sh"
 tmp="${TMPDIR:-/tmp}/install for Linux&macOS.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp"
