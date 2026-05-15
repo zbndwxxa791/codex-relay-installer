@@ -60,6 +60,29 @@ die() {
   exit 1
 }
 
+script_path_for_help() {
+  case "$0" in
+    /*)
+      printf '%s\n' "$0"
+      ;;
+    *)
+      script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd -P || true)"
+      if [ -n "$script_dir" ]; then
+        printf '%s/%s\n' "$script_dir" "$(basename "$0")"
+      else
+        printf '%s\n' "$0"
+      fi
+      ;;
+  esac
+}
+
+print_rerun_hints() {
+  script_path="$(script_path_for_help)"
+  log "Use the full installer path for future local runs:"
+  log "  bash \"$script_path\" --doctor"
+  log "  bash \"$script_path\" --uninstall"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run)
@@ -1038,6 +1061,7 @@ install_relay_config() {
     printf '\n'
     cat "$next_tmp"
     log "Would set user environment variable $ENV_VAR_NAME"
+    print_rerun_hints
     rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
     return
   fi
@@ -1052,6 +1076,7 @@ install_relay_config() {
   log "Set environment variable: $ENV_VAR_NAME"
   log "Restart your terminal, VS Code, and Codex Desktop so they inherit the new environment."
   log "Try: codex --version && codex"
+  print_rerun_hints
 }
 
 uninstall_relay_config() {

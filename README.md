@@ -79,27 +79,29 @@ Windows 会写入用户环境变量。Linux/macOS 会写入当前 shell profile�
 Linux/macOS:
 
 ```bash
-bash "install for Linux&macOS.sh" --dry-run
-bash "install for Linux&macOS.sh" --doctor
-bash "install for Linux&macOS.sh" --test
-bash "install for Linux&macOS.sh" --benchmark
-bash "install for Linux&macOS.sh" --list-models
-bash "install for Linux&macOS.sh" --restore
-bash "install for Linux&macOS.sh" --uninstall
-bash "install for Linux&macOS.sh" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --dry-run
+bash "$installer" --doctor
+bash "$installer" --test
+bash "$installer" --benchmark
+bash "$installer" --list-models
+bash "$installer" --restore
+bash "$installer" --uninstall
+bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
 ```
 
 Windows:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -DryRun
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Doctor
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -TestConnection
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Benchmark
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -ListModels
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Restore
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Uninstall
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -BaseUrl "https://litellm.blackwhitedeer.studio/v1" -Model "gpt-5.5"
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -ListModels
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio/v1" -Model "gpt-5.5"
 ```
 
 ## 诊断和连通性测试
@@ -107,11 +109,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" 
 诊断模式不会安装配置，只检查当前环境：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Doctor
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --doctor
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --doctor
 ```
 
 它会检查 Codex CLI、配置文件、API key 环境变量、模型列表接口是否可达。
@@ -119,23 +123,27 @@ bash "install for Linux&macOS.sh" --doctor
 连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点；普通用户 key 无权读取元数据时会给出提示，但不代表请求额度不可用。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Benchmark
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
-bash "install for Linux&macOS.sh" --benchmark
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
+bash "$installer" --benchmark
 ```
 
 模型选择器会调用 `GET /v1/models`，让用户从中转实际返回的模型列表中选择默认模型。也可以跳过模型选择：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -NoModelPicker -Model "gpt-5.5"
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -NoModelPicker -Model "gpt-5.5"
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --no-model-picker --model "gpt-5.5"
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --no-model-picker --model "gpt-5.5"
 ```
 
 ## 验证
@@ -154,19 +162,23 @@ VS Code Codex 插件和 Codex Desktop 如果已经打开，需要完全退出后
 恢复最近一次备份：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Restore
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --restore
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --restore
 ```
 
 卸载中转配置并清理脚本写入的环境变量配置：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Uninstall
+$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --uninstall
+installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+bash "$installer" --uninstall
 ```

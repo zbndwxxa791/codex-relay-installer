@@ -30,6 +30,8 @@ def test_windows_installer_contract():
     assert "Invoke-WebRequest" in text
     assert "Measure-RelayRequest" in text
     assert "Invoke-Benchmark" in text
+    assert "Get-ScriptPathForHelp" in text
+    assert "Write-ReRunHints" in text
     assert "Ensure-WindowsSandboxConfig" in text
     assert "Remove-RelayProviderConfig" in text
     assert 'sandbox = "elevated"' in text
@@ -61,6 +63,8 @@ def test_unix_installer_contract():
     assert "curl" in text
     assert "timed_curl_json" in text
     assert "invoke_benchmark" in text
+    assert "script_path_for_help" in text
+    assert "print_rerun_hints" in text
     assert "ensure_windows_sandbox_config" in text
     assert "remove_relay_provider_config" in text
     assert 'sandbox = "elevated"' in text
@@ -90,3 +94,12 @@ def test_readme_contains_public_distribution_commands():
     assert "模型选择" in text
     assert "--restore" in text
     assert "--uninstall" in text
+
+
+def test_readme_uses_full_local_script_paths():
+    text = read_text("README.md")
+
+    assert '$installer = "C:\\Users\\wjj20\\Desktop\\中转api安装脚本\\install for Windows.ps1"' in text
+    assert 'installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"' in text
+    assert '-File ".\\install for Windows.ps1"' not in text
+    assert 'bash "install for Linux&macOS.sh"' not in text

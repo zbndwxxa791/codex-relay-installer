@@ -43,6 +43,23 @@ function Write-Warn {
     Write-Warning "[codex-relay] $Message"
 }
 
+function Get-ScriptPathForHelp {
+    if ($PSCommandPath) {
+        return $PSCommandPath
+    }
+    if ($MyInvocation.MyCommand.Path) {
+        return $MyInvocation.MyCommand.Path
+    }
+    return "C:\path\to\install for Windows.ps1"
+}
+
+function Write-ReRunHints {
+    $scriptPath = Get-ScriptPathForHelp
+    Write-Step "Use the full installer path for future local runs:"
+    Write-Step "  powershell -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -Doctor"
+    Write-Step "  powershell -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -Uninstall"
+}
+
 function Get-CodexHome {
     if ($env:CODEX_HOME) {
         return $env:CODEX_HOME
@@ -884,6 +901,7 @@ function Install-RelayConfig {
         Write-Host ""
         Write-Host $nextContent
         Write-Step "Would set user environment variable $EnvVarName"
+        Write-ReRunHints
         return
     }
 
@@ -901,6 +919,7 @@ function Install-RelayConfig {
     Write-Step "Set user environment variable: $EnvVarName"
     Write-Step "Restart PowerShell, VS Code, and Codex Desktop so they inherit the new environment."
     Write-Step "Try: codex --version ; codex"
+    Write-ReRunHints
 }
 
 function Uninstall-RelayConfig {
