@@ -4,6 +4,7 @@ set -euo pipefail
 BEGIN_MARKER="# BEGIN CODEX RELAY INSTALLER MANAGED BLOCK"
 END_MARKER="# END CODEX RELAY INSTALLER MANAGED BLOCK"
 DEFAULT_BASE_URL="https://litellm.blackwhitedeer.studio/v1"
+WINDOWS_SANDBOX_LINE='sandbox = "elevated"'
 
 DRY_RUN=0
 UNINSTALL=0
@@ -611,6 +612,32 @@ remove_managed_config() {
     ' "$input_file"
 }
 
+remove_relay_provider_config() {
+  input_file="$1"
+  output_file="$2"
+
+  awk -v provider="$PROVIDER_ID" '
+    function table_name(line, name) {
+      name = line
+      sub(/^[[:space:]]*\[/, "", name)
+      sub(/\][[:space:]]*$/, "", name)
+      sub(/^[[:space:]]+/, "", name)
+      sub(/[[:space:]]+$/, "", name)
+      return name
+    }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      current_table = table_name($0)
+      if (current_table == "model_providers." provider || current_table == "model_providers.\"" provider "\"") {
+        inside_target_provider = 1
+        next
+      }
+      inside_target_provider = 0
+    }
+    inside_target_provider { next }
+    { print }
+  ' "$input_file" > "$output_file"
+}
+
 managed_root_block() {
   escaped_model="$(toml_escape "$MODEL")"
 
@@ -653,6 +680,40 @@ split_config_at_first_table() {
     seen_table { print > table_file; next }
     { print > root_file }
   ' "$input_file"
+}
+
+ensure_windows_sandbox_config() {
+  input_file="$1"
+  output_file="$2"
+
+  awk -v sandbox_line="$WINDOWS_SANDBOX_LINE" '
+    function table_name(line, name) {
+      name = line
+      sub(/^[[:space:]]*\[/, "", name)
+      sub(/\][[:space:]]*$/, "", name)
+      return name
+    }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      current_table = table_name($0)
+      print
+      if (current_table == "windows") {
+        found_windows = 1
+        print sandbox_line
+      }
+      next
+    }
+    /^[[:space:]]*sandbox[[:space:]]*=/ { next }
+    { print }
+    END {
+      if (!found_windows) {
+        if (NR > 0) {
+          print ""
+        }
+        print "[windows]"
+        print sandbox_line
+      }
+    }
+  ' "$input_file" > "$output_file"
 }
 
 join_config_sections() {
@@ -956,6 +1017,8 @@ install_relay_config() {
   cfg="$(config_path)"
   mkdir_arg="$(dirname "$cfg")"
   clean_tmp="$(mktemp)"
+  provider_clean_tmp="$(mktemp)"
+  sandbox_tmp="$(mktemp)"
   root_tmp="$(mktemp)"
   table_tmp="$(mktemp)"
   root_block_tmp="$(mktemp)"
@@ -963,7 +1026,9 @@ install_relay_config() {
   next_tmp="$(mktemp)"
 
   remove_managed_config "$cfg" "1" > "$clean_tmp"
-  split_config_at_first_table "$clean_tmp" "$root_tmp" "$table_tmp"
+  remove_relay_provider_config "$clean_tmp" "$provider_clean_tmp"
+  ensure_windows_sandbox_config "$provider_clean_tmp" "$sandbox_tmp"
+  split_config_at_first_table "$sandbox_tmp" "$root_tmp" "$table_tmp"
   managed_root_block > "$root_block_tmp"
   managed_provider_block > "$provider_block_tmp"
   join_config_sections "$root_block_tmp" "$root_tmp" "$table_tmp" "$provider_block_tmp" > "$next_tmp"
@@ -973,14 +1038,14 @@ install_relay_config() {
     printf '\n'
     cat "$next_tmp"
     log "Would set user environment variable $ENV_VAR_NAME"
-    rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+    rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
     return
   fi
 
   mkdir -p "$mkdir_arg"
   backup_config
   cp "$next_tmp" "$cfg"
-  rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+  rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
   set_persistent_env "$api_key"
 
   log "Wrote Codex config: $cfg"

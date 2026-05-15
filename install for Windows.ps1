@@ -619,6 +619,41 @@ function Remove-ManagedConfig {
     return (($output -join "`r`n").TrimEnd())
 }
 
+function Remove-RelayProviderConfig {
+    param(
+        [string]$Content,
+        [string]$ProviderId
+    )
+
+    if (-not $Content) {
+        return ""
+    }
+
+    $escapedProviderId = [regex]::Escape($ProviderId)
+    $providerHeaderPattern = "^\s*\[model_providers\.(?:`"$escapedProviderId`"|$escapedProviderId)\]\s*$"
+    $lines = $Content -split "`r?`n"
+    $output = New-Object System.Collections.Generic.List[string]
+    $insideTargetProvider = $false
+
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[') {
+            if ($line -match $providerHeaderPattern) {
+                $insideTargetProvider = $true
+                continue
+            }
+            $insideTargetProvider = $false
+        }
+
+        if ($insideTargetProvider) {
+            continue
+        }
+
+        $output.Add($line)
+    }
+
+    return (($output -join "`r`n").TrimEnd())
+}
+
 function New-ManagedRootBlock {
     param(
         [string]$ProviderId,
@@ -685,6 +720,43 @@ function Split-ConfigAtFirstTable {
         Root = ($rootLines -join "`r`n").TrimEnd()
         Tables = ($tableLines -join "`r`n").TrimEnd()
     }
+}
+
+function Ensure-WindowsSandboxConfig {
+    param([string]$Content)
+
+    $lines = if ($Content) { $Content -split "`r?`n" } else { @() }
+    $output = New-Object System.Collections.Generic.List[string]
+    $currentTable = ""
+    $foundWindowsTable = $false
+
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[([^\]]+)\]\s*$') {
+            $currentTable = $matches[1].Trim()
+            $output.Add($line)
+            if ($currentTable -eq "windows") {
+                $foundWindowsTable = $true
+                $output.Add('sandbox = "elevated"')
+            }
+            continue
+        }
+
+        if ($line -match '^\s*sandbox\s*=') {
+            continue
+        }
+
+        $output.Add($line)
+    }
+
+    if (-not $foundWindowsTable) {
+        if ($output.Count -gt 0 -and $output[$output.Count - 1].Trim()) {
+            $output.Add("")
+        }
+        $output.Add("[windows]")
+        $output.Add('sandbox = "elevated"')
+    }
+
+    return (($output -join "`r`n").TrimEnd())
 }
 
 function Join-ConfigSections {
@@ -800,6 +872,8 @@ function Install-RelayConfig {
     }
 
     $clean = Remove-ManagedConfig -Content $existing -RemoveTopLevelDefaults
+    $clean = Remove-RelayProviderConfig -Content $clean -ProviderId $ProviderId
+    $clean = Ensure-WindowsSandboxConfig $clean
     $split = Split-ConfigAtFirstTable -Content $clean
     $rootBlock = New-ManagedRootBlock -ProviderId $ProviderId -Model $resolvedModel
     $providerBlock = New-ManagedProviderBlock -ProviderId $ProviderId -EnvVarName $EnvVarName -BaseUrl $resolvedBaseUrl

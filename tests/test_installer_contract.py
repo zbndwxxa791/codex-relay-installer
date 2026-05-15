@@ -30,6 +30,9 @@ def test_windows_installer_contract():
     assert "Invoke-WebRequest" in text
     assert "Measure-RelayRequest" in text
     assert "Invoke-Benchmark" in text
+    assert "Ensure-WindowsSandboxConfig" in text
+    assert "Remove-RelayProviderConfig" in text
+    assert 'sandbox = "elevated"' in text
     assert "spend/keys" in text
     assert "responses" in text
     assert "models" in text
@@ -58,6 +61,9 @@ def test_unix_installer_contract():
     assert "curl" in text
     assert "timed_curl_json" in text
     assert "invoke_benchmark" in text
+    assert "ensure_windows_sandbox_config" in text
+    assert "remove_relay_provider_config" in text
+    assert 'sandbox = "elevated"' in text
     assert "spend/keys" in text
     assert "responses" in text
     assert "models" in text

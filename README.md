@@ -55,6 +55,9 @@ model = "gpt-5.5"
 model_provider = "custom-relay"
 # END CODEX RELAY INSTALLER MANAGED BLOCK
 
+[windows]
+sandbox = "elevated"
+
 # BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 [model_providers.custom-relay]
 name = "custom-relay"
@@ -64,6 +67,8 @@ env_key = "CODEX_RELAY_API_KEY"
 env_key_instructions = "Set CODEX_RELAY_API_KEY in your user environment."
 # END CODEX RELAY INSTALLER MANAGED BLOCK
 ```
+
+Rerunning the installer overwrites the old `custom-relay` provider config instead of stacking duplicate provider tables, while keeping unrelated Codex settings. Windows sandbox will be normalized into `[windows]` as `sandbox = "elevated"`. If it was accidentally appended at the end of the file and landed under another TOML table, rerunning the installer moves it back to the right table.
 
 API key 默认写入当前用户的环境变量 `CODEX_RELAY_API_KEY`，不会写进 `config.toml`。
 
