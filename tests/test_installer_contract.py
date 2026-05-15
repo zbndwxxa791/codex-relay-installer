@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_BASE_URL = "https://litellm.blackwhitedeer.studio/v1"
 
 
 def read_text(name: str) -> str:
@@ -12,11 +13,13 @@ def test_windows_installer_contract():
     text = read_text("install for Windows.ps1")
 
     assert "param(" in text
+    assert f'$DefaultBaseUrl = "{DEFAULT_BASE_URL}"' in text
     assert "[switch]$DryRun" in text
     assert "[switch]$Uninstall" in text
     assert "[switch]$Restore" in text
     assert "[switch]$Doctor" in text
     assert "[switch]$TestConnection" in text
+    assert "[switch]$Benchmark" in text
     assert "[switch]$ListModels" in text
     assert "[switch]$NoModelPicker" in text
     assert "CODEX_RELAY_API_KEY" in text
@@ -24,6 +27,10 @@ def test_windows_installer_contract():
     assert "model_provider = \"$ProviderId\"" in text
     assert "[Environment]::SetEnvironmentVariable" in text
     assert "Invoke-RestMethod" in text
+    assert "Invoke-WebRequest" in text
+    assert "Measure-RelayRequest" in text
+    assert "Invoke-Benchmark" in text
+    assert "spend/keys" in text
     assert "responses" in text
     assert "models" in text
     assert ".backup-" in text
@@ -36,17 +43,22 @@ def test_unix_installer_contract():
     text = read_text("install for Linux&macOS.sh")
 
     assert "set -euo pipefail" in text
+    assert f'DEFAULT_BASE_URL="{DEFAULT_BASE_URL}"' in text
     assert "--dry-run" in text
     assert "--uninstall" in text
     assert "--restore" in text
     assert "--doctor" in text
     assert "--test" in text
+    assert "--benchmark" in text
     assert "--list-models" in text
     assert "--no-model-picker" in text
     assert "CODEX_RELAY_API_KEY" in text
     assert 'wire_api = "responses"' in text
     assert 'model_provider = "$PROVIDER_ID"' in text
     assert "curl" in text
+    assert "timed_curl_json" in text
+    assert "invoke_benchmark" in text
+    assert "spend/keys" in text
     assert "responses" in text
     assert "models" in text
     assert ".backup-" in text
@@ -58,6 +70,8 @@ def test_unix_installer_contract():
 def test_readme_contains_public_distribution_commands():
     text = read_text("README.md")
 
+    assert DEFAULT_BASE_URL in text
+    assert "https://relay.example.com/v1" not in text
     assert "install for Windows.ps1" in text
     assert "install for Linux&macOS.sh" in text
     assert "Responses API" in text
@@ -65,6 +79,7 @@ def test_readme_contains_public_distribution_commands():
     assert "--dry-run" in text
     assert "--doctor" in text
     assert "--test" in text
+    assert "--benchmark" in text
     assert "--list-models" in text
     assert "模型选择" in text
     assert "--restore" in text

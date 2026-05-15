@@ -3,18 +3,20 @@ set -euo pipefail
 
 BEGIN_MARKER="# BEGIN CODEX RELAY INSTALLER MANAGED BLOCK"
 END_MARKER="# END CODEX RELAY INSTALLER MANAGED BLOCK"
+DEFAULT_BASE_URL="https://litellm.blackwhitedeer.studio/v1"
 
 DRY_RUN=0
 UNINSTALL=0
 RESTORE=0
 DOCTOR=0
 TEST_CONNECTION=0
+BENCHMARK=0
 LIST_MODELS=0
 NO_MODEL_PICKER=0
 SKIP_CODEX_CHECK=0
 PROVIDER_ID="custom-relay"
 ENV_VAR_NAME="CODEX_RELAY_API_KEY"
-BASE_URL=""
+BASE_URL="$DEFAULT_BASE_URL"
 MODEL=""
 REQUEST_TIMEOUT_SEC=30
 
@@ -31,6 +33,7 @@ Options:
   --restore                 Restore the latest config backup only.
   --doctor                  Diagnose Codex, config, env var, and relay reachability.
   --test                    Send a minimal POST /v1/responses request.
+  --benchmark               Run one-time speed and quota/status checks without writing config.
   --list-models             List models from GET /v1/models.
   --no-model-picker         Do not fetch models during install; use --model or default.
   --skip-codex-check        Do not check or offer to install Codex CLI.
@@ -78,6 +81,10 @@ while [ "$#" -gt 0 ]; do
       TEST_CONNECTION=1
       shift
       ;;
+    --benchmark)
+      BENCHMARK=1
+      shift
+      ;;
     --list-models)
       LIST_MODELS=1
       shift
@@ -120,8 +127,8 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-mode_count=$((RESTORE + UNINSTALL + DOCTOR + TEST_CONNECTION + LIST_MODELS))
-[ "$mode_count" -gt 1 ] && die "Use only one mode at a time: --restore, --uninstall, --doctor, --test, or --list-models."
+mode_count=$((RESTORE + UNINSTALL + DOCTOR + TEST_CONNECTION + BENCHMARK + LIST_MODELS))
+[ "$mode_count" -gt 1 ] && die "Use only one mode at a time: --restore, --uninstall, --doctor, --test, --benchmark, or --list-models."
 
 codex_home() {
   if [ -n "${CODEX_HOME:-}" ]; then
@@ -222,6 +229,14 @@ join_api_url() {
   printf '%s/%s\n' "$base" "$path"
 }
 
+relay_root_url() {
+  base="$(normalize_base_url "$1")"
+  case "$base" in
+    */v1) printf '%s\n' "${base%/v1}" ;;
+    *) printf '%s\n' "$base" ;;
+  esac
+}
+
 json_escape() {
   if command -v python3 >/dev/null 2>&1; then
     python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
@@ -300,11 +315,47 @@ curl_json() {
   fi
 }
 
+timed_curl_json() {
+  method="$1"
+  url="$2"
+  api_key="$3"
+  body_file="${4:-}"
+  output_file="$5"
+  timing_file="$6"
+
+  command -v curl >/dev/null 2>&1 || die "curl was not found."
+
+  if [ "$method" = "GET" ]; then
+    result="$(curl -sS \
+      --connect-timeout "$REQUEST_TIMEOUT_SEC" \
+      --max-time "$REQUEST_TIMEOUT_SEC" \
+      -H "Authorization: Bearer $api_key" \
+      -H "Content-Type: application/json" \
+      -o "$output_file" \
+      -w "%{http_code} %{time_total}" \
+      "$url")"
+  else
+    result="$(curl -sS \
+      --connect-timeout "$REQUEST_TIMEOUT_SEC" \
+      --max-time "$REQUEST_TIMEOUT_SEC" \
+      -H "Authorization: Bearer $api_key" \
+      -H "Content-Type: application/json" \
+      -d "@$body_file" \
+      -o "$output_file" \
+      -w "%{http_code} %{time_total}" \
+      "$url")"
+  fi
+
+  printf '%s\n' "${result#* }" > "$timing_file"
+  printf '%s\n' "${result%% *}"
+}
+
 http_failure_hint() {
   status="$1"
   case "$status" in
     400) warn "HTTP 400: request was rejected. The model name or Responses API compatibility may be wrong." ;;
     401) warn "HTTP 401: API key is missing or invalid." ;;
+    402) warn "HTTP 402: quota, balance, or payment limit may be exhausted." ;;
     403) warn "HTTP 403: API key is valid but not allowed to use this resource." ;;
     404) warn "HTTP 404: endpoint not found. Check base URL and make sure it includes the correct /v1 path." ;;
     429) warn "HTTP 429: upstream rate limit or quota was reached." ;;
@@ -421,6 +472,88 @@ EOF
     2*) log "Responses API test succeeded for model: $model"; return 0 ;;
     *) http_failure_hint "$status"; return 1 ;;
   esac
+}
+
+benchmark_result() {
+  name="$1"
+  status="$2"
+  seconds="$3"
+  ms="$(awk -v t="$seconds" 'BEGIN { printf "%.0f", t * 1000 }')"
+  case "$status" in
+    2*) log "$name: HTTP $status in ${ms} ms"; return 0 ;;
+    *) warn "$name: HTTP $status after ${ms} ms"; return 1 ;;
+  esac
+}
+
+invoke_benchmark() {
+  resolved_base_url="$(normalize_base_url "$(prompt_value "Relay base URL, include /v1 if your service uses it" "$BASE_URL")")"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    resolved_model="$(select_model "$resolved_base_url" "__dry_run_api_key_not_written__" "$MODEL")"
+    log "Would benchmark: $(join_api_url "$resolved_base_url" "models")"
+    log "Would benchmark: $(join_api_url "$resolved_base_url" "responses")"
+    log "Would probe quota/spend endpoint: $(relay_root_url "$resolved_base_url")/global/spend/keys?limit=1"
+    log "Would test model: $resolved_model"
+    return
+  fi
+
+  api_key="$(prompt_secret)"
+  resolved_model="$(select_model "$resolved_base_url" "$api_key" "$MODEL")"
+  models_url="$(join_api_url "$resolved_base_url" "models")"
+  responses_url="$(join_api_url "$resolved_base_url" "responses")"
+  spend_url="$(relay_root_url "$resolved_base_url")/global/spend/keys?limit=1"
+
+  log "Benchmark base URL: $resolved_base_url"
+  log "Benchmark model: $resolved_model"
+
+  models_out="$(mktemp)"
+  models_time="$(mktemp)"
+  models_status="$(timed_curl_json "GET" "$models_url" "$api_key" "" "$models_out" "$models_time")"
+  models_seconds="$(cat "$models_time")"
+  if ! benchmark_result "GET /models speed" "$models_status" "$models_seconds"; then
+    http_failure_hint "$models_status"
+    models_ok=0
+  else
+    models_ok=1
+  fi
+
+  body_tmp="$(mktemp)"
+  responses_out="$(mktemp)"
+  responses_time="$(mktemp)"
+  escaped_model="$(printf '%s' "$resolved_model" | json_escape)"
+  cat > "$body_tmp" <<EOF
+{
+  "model": $escaped_model,
+  "instructions": "Reply with OK only.",
+  "input": "One-time speed and quota probe.",
+  "stream": false
+}
+EOF
+  responses_status="$(timed_curl_json "POST" "$responses_url" "$api_key" "$body_tmp" "$responses_out" "$responses_time")"
+  responses_seconds="$(cat "$responses_time")"
+  if benchmark_result "POST /responses speed and quota status" "$responses_status" "$responses_seconds"; then
+    log "Quota status: one minimal Responses request was accepted."
+    responses_ok=1
+  else
+    http_failure_hint "$responses_status"
+    responses_ok=0
+  fi
+
+  spend_out="$(mktemp)"
+  spend_time="$(mktemp)"
+  spend_status="$(timed_curl_json "GET" "$spend_url" "$api_key" "" "$spend_out" "$spend_time")"
+  spend_seconds="$(cat "$spend_time")"
+  if benchmark_result "GET /global/spend/keys quota metadata probe" "$spend_status" "$spend_seconds"; then
+    log "Quota metadata endpoint is reachable for this key."
+  else
+    warn "Quota metadata endpoint is not readable with this key. This is normal for user keys; HTTP 401/403/404 here does not mean the relay request quota failed."
+    http_failure_hint "$spend_status"
+  fi
+
+  rm -f "$models_out" "$models_time" "$body_tmp" "$responses_out" "$responses_time" "$spend_out" "$spend_time"
+
+  if [ "$models_ok" -ne 1 ] || [ "$responses_ok" -ne 1 ]; then
+    return 1
+  fi
 }
 
 config_root_value() {
@@ -886,6 +1019,8 @@ if [ "$DOCTOR" -eq 1 ]; then
   invoke_doctor
 elif [ "$TEST_CONNECTION" -eq 1 ]; then
   invoke_test_connection
+elif [ "$BENCHMARK" -eq 1 ]; then
+  invoke_benchmark
 elif [ "$LIST_MODELS" -eq 1 ]; then
   invoke_list_models
 elif [ "$RESTORE" -eq 1 ]; then

@@ -3,12 +3,12 @@
 一键把 Codex CLI、Codex Desktop 和 VS Code Codex 插件切到你自己的 OpenAI
 Responses API 兼容中转服务。
 
-这个项目适合公开分发给用户运行。脚本不会包含你的 base URL 或 API key；用户在本机终端交互粘贴自己的信息。
+这个项目适合公开分发给用户运行。脚本内置默认 base URL，但不会包含你的 API key；用户在本机终端交互粘贴自己的 key。
 
 ## 前提
 
 - 中转服务必须支持 OpenAI Responses API。
-- base URL 建议填写到 `/v1`，例如 `https://relay.example.com/v1`。
+- base URL 默认使用 `https://litellm.blackwhitedeer.studio/v1`，也可以用参数覆盖。
 - 用户需要有自己的 API key。
 - Codex CLI、Codex Desktop、VS Code Codex 插件共享 `~/.codex/config.toml`。脚本写好这个文件后，三个入口会读取同一套 provider 配置。
 
@@ -36,7 +36,6 @@ bash "$tmp"
 
 运行时脚本会提示用户输入：
 
-- relay base URL
 - relay API key
 - default model，脚本会优先尝试从 `GET /v1/models` 拉取模型列表，让用户选择；失败时再手动输入
 
@@ -59,7 +58,7 @@ model_provider = "custom-relay"
 # BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 [model_providers.custom-relay]
 name = "custom-relay"
-base_url = "https://relay.example.com/v1"
+base_url = "https://litellm.blackwhitedeer.studio/v1"
 wire_api = "responses"
 env_key = "CODEX_RELAY_API_KEY"
 env_key_instructions = "Set CODEX_RELAY_API_KEY in your user environment."
@@ -78,10 +77,11 @@ Linux/macOS:
 bash "install for Linux&macOS.sh" --dry-run
 bash "install for Linux&macOS.sh" --doctor
 bash "install for Linux&macOS.sh" --test
+bash "install for Linux&macOS.sh" --benchmark
 bash "install for Linux&macOS.sh" --list-models
 bash "install for Linux&macOS.sh" --restore
 bash "install for Linux&macOS.sh" --uninstall
-bash "install for Linux&macOS.sh" --base-url "https://relay.example.com/v1" --model "gpt-5.5"
+bash "install for Linux&macOS.sh" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
 ```
 
 Windows:
@@ -90,10 +90,11 @@ Windows:
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -DryRun
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Doctor
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -TestConnection
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Benchmark
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -ListModels
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Restore
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Uninstall
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -BaseUrl "https://relay.example.com/v1" -Model "gpt-5.5"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -BaseUrl "https://litellm.blackwhitedeer.studio/v1" -Model "gpt-5.5"
 ```
 
 ## 诊断和连通性测试
@@ -110,14 +111,16 @@ bash "install for Linux&macOS.sh" --doctor
 
 它会检查 Codex CLI、配置文件、API key 环境变量、模型列表接口是否可达。
 
-连通性测试会发送最小 Responses API 请求：
+连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点；普通用户 key 无权读取元数据时会给出提示，但不代表请求额度不可用。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -TestConnection -BaseUrl "https://relay.example.com/v1"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\install for Windows.ps1" -Benchmark
 ```
 
 ```bash
-bash "install for Linux&macOS.sh" --test --base-url "https://relay.example.com/v1"
+bash "install for Linux&macOS.sh" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
+bash "install for Linux&macOS.sh" --benchmark
 ```
 
 模型选择器会调用 `GET /v1/models`，让用户从中转实际返回的模型列表中选择默认模型。也可以跳过模型选择：

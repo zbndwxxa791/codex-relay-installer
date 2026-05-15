@@ -16,6 +16,7 @@ param(
     [switch]$Restore,
     [switch]$Doctor,
     [switch]$TestConnection,
+    [switch]$Benchmark,
     [switch]$ListModels,
     [switch]$NoModelPicker,
     [switch]$SkipCodexCheck,
@@ -30,6 +31,7 @@ $ErrorActionPreference = "Stop"
 
 $BeginMarker = "# BEGIN CODEX RELAY INSTALLER MANAGED BLOCK"
 $EndMarker = "# END CODEX RELAY INSTALLER MANAGED BLOCK"
+$DefaultBaseUrl = "https://litellm.blackwhitedeer.studio/v1"
 
 function Write-Step {
     param([string]$Message)
@@ -138,6 +140,25 @@ function Normalize-BaseUrl {
     return $trimmed
 }
 
+function Resolve-BaseUrl {
+    param([string]$Value)
+
+    if ($Value -and $Value.Trim()) {
+        return Normalize-BaseUrl $Value
+    }
+    return Normalize-BaseUrl $DefaultBaseUrl
+}
+
+function Get-RelayRootUrl {
+    param([string]$BaseUrl)
+
+    $normalized = Normalize-BaseUrl $BaseUrl
+    if ($normalized -match '/v1$') {
+        return $normalized.Substring(0, $normalized.Length - 3)
+    }
+    return $normalized
+}
+
 function Get-ConfigValue {
     param(
         [string]$Content,
@@ -232,6 +253,24 @@ function Get-RelayModels {
     return @($response.data | Where-Object { $_.id } | ForEach-Object { [string]$_.id } | Sort-Object -Unique)
 }
 
+function Write-HttpStatusHint {
+    param(
+        [object]$Status,
+        [string]$FallbackMessage = "Request failed."
+    )
+
+    switch ($status) {
+        400 { Write-Warn "HTTP 400: request was rejected. The model name or Responses API compatibility may be wrong." }
+        401 { Write-Warn "HTTP 401: API key is missing or invalid." }
+        402 { Write-Warn "HTTP 402: quota, balance, or payment limit may be exhausted." }
+        403 { Write-Warn "HTTP 403: API key is valid but not allowed to use this resource." }
+        404 { Write-Warn "HTTP 404: endpoint not found. Check base URL and make sure it includes the correct /v1 path." }
+        429 { Write-Warn "HTTP 429: upstream rate limit or quota was reached." }
+        { $_ -ge 500 } { Write-Warn "HTTP ${status}: relay or upstream server error." }
+        default { Write-Warn $FallbackMessage }
+    }
+}
+
 function Write-HttpFailureHint {
     param([System.Management.Automation.ErrorRecord]$ErrorRecord)
 
@@ -245,15 +284,7 @@ function Write-HttpFailureHint {
         }
     }
 
-    switch ($status) {
-        400 { Write-Warn "HTTP 400: request was rejected. The model name or Responses API compatibility may be wrong." }
-        401 { Write-Warn "HTTP 401: API key is missing or invalid." }
-        403 { Write-Warn "HTTP 403: API key is valid but not allowed to use this resource." }
-        404 { Write-Warn "HTTP 404: endpoint not found. Check base URL and make sure it includes the correct /v1 path." }
-        429 { Write-Warn "HTTP 429: upstream rate limit or quota was reached." }
-        { $_ -ge 500 } { Write-Warn "HTTP ${status}: relay or upstream server error." }
-        default { Write-Warn $ErrorRecord.Exception.Message }
-    }
+    Write-HttpStatusHint -Status $status -FallbackMessage $ErrorRecord.Exception.Message
 }
 
 function Show-ModelChoices {
@@ -337,6 +368,135 @@ function Test-ResponsesConnection {
     Write-Step "Responses API test succeeded for model: $Model"
 }
 
+function Measure-RelayRequest {
+    param(
+        [string]$Name,
+        [string]$Method,
+        [string]$Url,
+        [hashtable]$Headers,
+        [string]$Body
+    )
+
+    $parameters = @{
+        Method = $Method
+        Uri = $Url
+        Headers = $Headers
+        TimeoutSec = $RequestTimeoutSec
+        UseBasicParsing = $true
+    }
+    if ($Body) {
+        $parameters.Body = $Body
+        $parameters.ContentType = "application/json"
+    }
+
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $response = Invoke-WebRequest @parameters
+        $timer.Stop()
+        return [pscustomobject]@{
+            Name = $Name
+            Url = $Url
+            StatusCode = [int]$response.StatusCode
+            ElapsedMs = [Math]::Round($timer.Elapsed.TotalMilliseconds)
+            Succeeded = $true
+            ErrorMessage = $null
+        }
+    }
+    catch {
+        $timer.Stop()
+        $status = $null
+        if ($_.Exception.Response) {
+            try {
+                $status = [int]$_.Exception.Response.StatusCode
+            }
+            catch {
+                $status = $null
+            }
+        }
+        return [pscustomobject]@{
+            Name = $Name
+            Url = $Url
+            StatusCode = $status
+            ElapsedMs = [Math]::Round($timer.Elapsed.TotalMilliseconds)
+            Succeeded = $false
+            ErrorMessage = $_.Exception.Message
+        }
+    }
+}
+
+function Write-BenchmarkResult {
+    param([pscustomobject]$Result)
+
+    $statusText = if ($null -ne $Result.StatusCode) { $Result.StatusCode } else { "no HTTP status" }
+    if ($Result.Succeeded) {
+        Write-Step "$($Result.Name): HTTP $statusText in $($Result.ElapsedMs) ms"
+    }
+    else {
+        Write-Warn "$($Result.Name): HTTP $statusText after $($Result.ElapsedMs) ms"
+    }
+}
+
+function Invoke-Benchmark {
+    $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
+    $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
+    $resolvedModel = Select-Model -BaseUrl $resolvedBaseUrl -ApiKey $apiKey -RequestedModel $script:Model
+
+    $modelsUrl = Join-ApiUrl -BaseUrl $resolvedBaseUrl -Path "models"
+    $responsesUrl = Join-ApiUrl -BaseUrl $resolvedBaseUrl -Path "responses"
+    $spendUrl = "$(Get-RelayRootUrl $resolvedBaseUrl)/global/spend/keys?limit=1"
+
+    if ($DryRun) {
+        Write-Step "Would benchmark: $modelsUrl"
+        Write-Step "Would benchmark: $responsesUrl"
+        Write-Step "Would probe quota/spend endpoint: $spendUrl"
+        Write-Step "Would test model: $resolvedModel"
+        return
+    }
+
+    $headers = @{
+        Authorization = "Bearer $apiKey"
+        "Content-Type" = "application/json"
+    }
+    $body = @{
+        model = $resolvedModel
+        instructions = "Reply with OK only."
+        input = "One-time speed and quota probe."
+        stream = $false
+    } | ConvertTo-Json -Depth 4
+
+    Write-Step "Benchmark base URL: $resolvedBaseUrl"
+    Write-Step "Benchmark model: $resolvedModel"
+
+    $modelsResult = Measure-RelayRequest -Name "GET /models speed" -Method "GET" -Url $modelsUrl -Headers $headers
+    Write-BenchmarkResult $modelsResult
+    if (-not $modelsResult.Succeeded) {
+        Write-HttpStatusHint -Status $modelsResult.StatusCode -FallbackMessage $modelsResult.ErrorMessage
+    }
+
+    $responsesResult = Measure-RelayRequest -Name "POST /responses speed and quota status" -Method "POST" -Url $responsesUrl -Headers $headers -Body $body
+    Write-BenchmarkResult $responsesResult
+    if ($responsesResult.Succeeded) {
+        Write-Step "Quota status: one minimal Responses request was accepted."
+    }
+    else {
+        Write-HttpStatusHint -Status $responsesResult.StatusCode -FallbackMessage $responsesResult.ErrorMessage
+    }
+
+    $spendResult = Measure-RelayRequest -Name "GET /global/spend/keys quota metadata probe" -Method "GET" -Url $spendUrl -Headers $headers
+    Write-BenchmarkResult $spendResult
+    if ($spendResult.Succeeded) {
+        Write-Step "Quota metadata endpoint is reachable for this key."
+    }
+    else {
+        Write-Warn "Quota metadata endpoint is not readable with this key. This is normal for user keys; HTTP 401/403/404 here does not mean the relay request quota failed."
+        Write-HttpStatusHint -Status $spendResult.StatusCode -FallbackMessage $spendResult.ErrorMessage
+    }
+
+    if (-not $modelsResult.Succeeded -or -not $responsesResult.Succeeded) {
+        throw "Benchmark failed for one or more required relay checks."
+    }
+}
+
 function Invoke-Doctor {
     $relay = Get-ConfiguredRelay
     Write-Step "Codex home: $(Get-CodexHome)"
@@ -358,7 +518,7 @@ function Invoke-Doctor {
         Write-Warn "Codex CLI not found on PATH."
     }
 
-    $effectiveBaseUrl = if ($BaseUrl) { Normalize-BaseUrl $BaseUrl } else { $relay.BaseUrl }
+    $effectiveBaseUrl = if ($BaseUrl) { Normalize-BaseUrl $BaseUrl } elseif ($relay.BaseUrl) { $relay.BaseUrl } else { $DefaultBaseUrl }
     $effectiveEnvVar = if ($relay.EnvVarName) { $relay.EnvVarName } else { $EnvVarName }
     $apiKey = Get-EffectiveEnvValue $effectiveEnvVar
 
@@ -384,7 +544,7 @@ function Invoke-Doctor {
 }
 
 function Invoke-ListModels {
-    $resolvedBaseUrl = Normalize-BaseUrl (Read-RequiredValue "Relay base URL, include /v1 if your service uses it" $script:BaseUrl)
+    $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
     if ($DryRun) {
         Write-Step "Would request: $(Join-ApiUrl -BaseUrl $resolvedBaseUrl -Path "models")"
@@ -399,7 +559,7 @@ function Invoke-ListModels {
 }
 
 function Invoke-TestConnection {
-    $resolvedBaseUrl = Normalize-BaseUrl (Read-RequiredValue "Relay base URL, include /v1 if your service uses it" $script:BaseUrl)
+    $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
     $resolvedModel = Select-Model -BaseUrl $resolvedBaseUrl -ApiKey $apiKey -RequestedModel $script:Model
     if ($DryRun) {
@@ -624,7 +784,7 @@ function Install-RelayConfig {
     Assert-ProviderId $ProviderId
     Assert-EnvVarName $EnvVarName
 
-    $resolvedBaseUrl = Normalize-BaseUrl (Read-RequiredValue "Relay base URL, include /v1 if your service uses it" $script:BaseUrl)
+    $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
     $resolvedModel = Select-Model -BaseUrl $resolvedBaseUrl -ApiKey $apiKey -RequestedModel $script:Model
 
@@ -704,9 +864,9 @@ function Uninstall-RelayConfig {
     }
 }
 
-$exclusiveModeCount = (@($Restore, $Uninstall, $Doctor, $TestConnection, $ListModels) | Where-Object { $_ }).Count
+$exclusiveModeCount = (@($Restore, $Uninstall, $Doctor, $TestConnection, $Benchmark, $ListModels) | Where-Object { $_ }).Count
 if ($exclusiveModeCount -gt 1) {
-    throw "Use only one mode at a time: -Restore, -Uninstall, -Doctor, -TestConnection, or -ListModels."
+    throw "Use only one mode at a time: -Restore, -Uninstall, -Doctor, -TestConnection, -Benchmark, or -ListModels."
 }
 
 if ($Doctor) {
@@ -714,6 +874,9 @@ if ($Doctor) {
 }
 elseif ($TestConnection) {
     Invoke-TestConnection
+}
+elseif ($Benchmark) {
+    Invoke-Benchmark
 }
 elseif ($ListModels) {
     Invoke-ListModels
