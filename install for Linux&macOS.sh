@@ -19,6 +19,7 @@ ENV_VAR_NAME="CODEX_RELAY_API_KEY"
 BASE_URL="$DEFAULT_BASE_URL"
 MODEL=""
 REQUEST_TIMEOUT_SEC=30
+SPARK_MODEL_CATALOG_FILE="codex-relay-model-catalog.json"
 
 usage() {
   cat <<'EOF'
@@ -42,6 +43,9 @@ Options:
   --base-url VALUE          Relay base URL, include /v1 if your service uses it.
   --model VALUE             Default Codex model. Default: gpt-5.5.
   --timeout VALUE           HTTP timeout seconds. Default: 30.
+                            Spark models are patched automatically: the installer
+                            disables Codex image_generation and writes a local
+                            model_catalog_json so /model can show them.
   -h, --help                Show this help.
 EOF
 }
@@ -140,6 +144,17 @@ codex_home() {
 
 config_path() {
   printf '%s/config.toml\n' "$(codex_home)"
+}
+
+spark_model_catalog_path() {
+  printf '%s/%s\n' "$(codex_home)" "$SPARK_MODEL_CATALOG_FILE"
+}
+
+spark_patch_enabled() {
+  # Always prepare Codex's local model catalog so relay-only models such as
+  # gpt-5.3-codex-spark can appear in /model, while keeping the configured
+  # default model unchanged (normally gpt-5.5).
+  return 0
 }
 
 assert_provider_id() {
@@ -606,18 +621,26 @@ remove_managed_config() {
       $0 == end { inside = 0; next }
       inside { next }
       !seen_table && $0 ~ /^[[:space:]]*\[/ { seen_table = 1 }
-      remove_top == "1" && !seen_table && $0 ~ /^[[:space:]]*(model|model_provider)[[:space:]]*=/ { next }
+      remove_top == "1" && !seen_table && $0 ~ /^[[:space:]]*(model|model_provider|model_catalog_json)[[:space:]]*=/ { next }
       { print }
     ' "$input_file"
 }
 
 managed_root_block() {
   escaped_model="$(toml_escape "$MODEL")"
+  escaped_catalog_path="$(toml_escape "$(spark_model_catalog_path)")"
 
   cat <<EOF
 $BEGIN_MARKER
 model = "$escaped_model"
 model_provider = "$PROVIDER_ID"
+EOF
+  if spark_patch_enabled; then
+    cat <<EOF
+model_catalog_json = "$escaped_catalog_path"
+EOF
+  fi
+  cat <<EOF
 $END_MARKER
 EOF
 }
@@ -666,6 +689,166 @@ join_config_sections() {
     printf '\n'
     first=0
   done
+}
+
+apply_spark_feature_patch() {
+  input_file="$1"
+  output_file="$2"
+
+  if ! spark_patch_enabled; then
+    cp "$input_file" "$output_file"
+    return
+  fi
+
+  awk \
+    -v begin="$BEGIN_MARKER" \
+    -v end="$END_MARKER" '
+      function emit_patch() {
+        print begin
+        print "image_generation = false"
+        print end
+      }
+      function maybe_emit_before_new_table() {
+        if (in_features && !emitted) {
+          emit_patch()
+          emitted = 1
+        }
+      }
+      /^\[features\][[:space:]]*$/ {
+        seen_features = 1
+        in_features = 1
+        print
+        next
+      }
+      /^\[/ {
+        maybe_emit_before_new_table()
+        in_features = 0
+        print
+        next
+      }
+      in_features && /^[[:space:]]*image_generation[[:space:]]*=/ { next }
+      { print }
+      END {
+        if (seen_features) {
+          maybe_emit_before_new_table()
+        } else {
+          print ""
+          print begin
+          print "[features]"
+          print "image_generation = false"
+          print end
+        }
+      }
+    ' "$input_file" > "$output_file"
+}
+
+write_spark_model_catalog() {
+  base_url="$1"
+  api_key="$2"
+  catalog_path="$(spark_model_catalog_path)"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would write Spark model catalog: $catalog_path"
+    return
+  fi
+
+  command -v python3 >/dev/null 2>&1 || die "python3 is required to write the Spark model catalog."
+  models_json="$(mktemp)"
+
+  if ! fetch_models_json "$base_url" "$api_key" "$models_json"; then
+    warn "Could not fetch relay models while writing Spark catalog. Catalog will include only $MODEL."
+    printf '{"data":[{"id":"%s"}]}\n' "$MODEL" > "$models_json"
+  fi
+
+  mkdir -p "$(dirname "$catalog_path")"
+  python3 - "$models_json" "$(codex_home)/models_cache.json" "$catalog_path" "$MODEL" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+models_json, cache_path, catalog_path, selected_model = sys.argv[1:5]
+
+with open(models_json, "r", encoding="utf-8") as f:
+    payload = json.load(f)
+ids = []
+for item in payload.get("data", []):
+    model_id = item.get("id")
+    if model_id and model_id not in ids:
+        ids.append(model_id)
+if selected_model and selected_model not in ids:
+    ids.insert(0, selected_model)
+
+cached = {}
+cache = Path(cache_path)
+if cache.exists():
+    try:
+        for model in json.loads(cache.read_text(encoding="utf-8")).get("models", []):
+            slug = model.get("slug")
+            if slug:
+                cached[slug] = model
+    except Exception:
+        pass
+
+reasoning = [
+    {"effort": "low", "description": "Fast responses with lighter reasoning"},
+    {"effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks"},
+    {"effort": "high", "description": "Greater reasoning depth for complex problems"},
+    {"effort": "xhigh", "description": "Extra high reasoning depth for complex problems"},
+]
+
+def generic_model(slug: str, priority: int) -> dict:
+    return {
+        "slug": slug,
+        "display_name": slug,
+        "description": "Relay model.",
+        "default_reasoning_level": "medium",
+        "supported_reasoning_levels": reasoning,
+        "shell_type": "shell_command",
+        "visibility": "list",
+        "supported_in_api": True,
+        "priority": priority,
+        "additional_speed_tiers": [],
+        "service_tiers": [],
+        "availability_nux": None,
+        "upgrade": None,
+        "base_instructions": "You are Codex, a coding agent. Help the user with software engineering tasks.",
+        "model_messages": None,
+        "supports_reasoning_summaries": False,
+        "default_reasoning_summary": "none",
+        "support_verbosity": False,
+        "default_verbosity": None,
+        "apply_patch_tool_type": "freeform",
+        "web_search_tool_type": "text",
+        "truncation_policy": {"mode": "tokens", "limit": 10000},
+        "supports_parallel_tool_calls": True,
+        "supports_image_detail_original": False,
+        "context_window": 128000,
+        "max_context_window": None,
+        "auto_compact_token_limit": None,
+        "effective_context_window_percent": 95,
+        "experimental_supported_tools": [],
+        "input_modalities": ["text"],
+        "supports_search_tool": False,
+    }
+
+models = []
+for i, slug in enumerate(ids):
+    model = dict(cached.get(slug) or generic_model(slug, i))
+    model["slug"] = slug
+    model["supported_in_api"] = True
+    model["visibility"] = "list"
+    if "spark" in slug.lower():
+        model["priority"] = -10000
+        model["display_name"] = model.get("display_name") or "GPT-5.3-Codex-Spark"
+    else:
+        model["priority"] = model.get("priority", i + 1)
+    models.append(model)
+
+models.sort(key=lambda m: m.get("priority", 9999))
+Path(catalog_path).write_text(json.dumps({"models": models}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  rm -f "$models_json"
+  log "Wrote Spark model catalog: $catalog_path"
 }
 
 latest_backup() {
@@ -958,30 +1141,39 @@ install_relay_config() {
   clean_tmp="$(mktemp)"
   root_tmp="$(mktemp)"
   table_tmp="$(mktemp)"
+  feature_tmp="$(mktemp)"
   root_block_tmp="$(mktemp)"
   provider_block_tmp="$(mktemp)"
   next_tmp="$(mktemp)"
 
   remove_managed_config "$cfg" "1" > "$clean_tmp"
   split_config_at_first_table "$clean_tmp" "$root_tmp" "$table_tmp"
+  apply_spark_feature_patch "$table_tmp" "$feature_tmp"
   managed_root_block > "$root_block_tmp"
   managed_provider_block > "$provider_block_tmp"
-  join_config_sections "$root_block_tmp" "$root_tmp" "$table_tmp" "$provider_block_tmp" > "$next_tmp"
+  join_config_sections "$root_block_tmp" "$root_tmp" "$feature_tmp" "$provider_block_tmp" > "$next_tmp"
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "Would write config to $cfg"
     printf '\n'
     cat "$next_tmp"
     log "Would set user environment variable $ENV_VAR_NAME"
-    rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+    if spark_patch_enabled; then
+      write_spark_model_catalog "$BASE_URL" "$api_key"
+    fi
+    rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$feature_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
     return
   fi
 
   mkdir -p "$mkdir_arg"
   backup_config
   cp "$next_tmp" "$cfg"
-  rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+  rm -f "$clean_tmp" "$root_tmp" "$table_tmp" "$feature_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
   set_persistent_env "$api_key"
+  if spark_patch_enabled; then
+    write_spark_model_catalog "$BASE_URL" "$api_key"
+    log "Disabled Codex image_generation for Spark compatibility."
+  fi
 
   log "Wrote Codex config: $cfg"
   log "Set environment variable: $ENV_VAR_NAME"
@@ -1012,6 +1204,11 @@ uninstall_relay_config() {
   fi
 
   clear_persistent_env
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would remove Spark model catalog: $(spark_model_catalog_path)"
+  else
+    rm -f "$(spark_model_catalog_path)"
+  fi
   log "Cleared persistent environment setup for $ENV_VAR_NAME"
 }
 
