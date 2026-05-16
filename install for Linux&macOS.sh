@@ -16,7 +16,6 @@ LIST_MODELS=0
 NO_MODEL_PICKER=0
 SKIP_CODEX_CHECK=0
 PROVIDER_ID="custom-relay"
-ENV_VAR_NAME="CODEX_RELAY_API_KEY"
 BASE_URL="$DEFAULT_BASE_URL"
 MODEL=""
 REQUEST_TIMEOUT_SEC=30
@@ -39,7 +38,6 @@ Options:
   --no-model-picker         Do not fetch models during install; use --model or default.
   --skip-codex-check        Do not check or offer to install Codex CLI.
   --provider-id VALUE       Provider id to write in config.toml. Default: custom-relay.
-  --env-var-name VALUE      API key environment variable. Default: CODEX_RELAY_API_KEY.
   --base-url VALUE          Relay base URL, include /v1 if your service uses it.
   --model VALUE             Default Codex model. Default: gpt-5.5.
   --timeout VALUE           HTTP timeout seconds. Default: 30.
@@ -125,10 +123,6 @@ while [ "$#" -gt 0 ]; do
       PROVIDER_ID="${2:-}"
       shift 2
       ;;
-    --env-var-name)
-      ENV_VAR_NAME="${2:-}"
-      shift 2
-      ;;
     --base-url)
       BASE_URL="${2:-}"
       shift 2
@@ -172,12 +166,6 @@ assert_provider_id() {
       die "Provider id may only contain letters, numbers, underscore, and dash."
       ;;
   esac
-}
-
-assert_env_var_name() {
-  if ! printf '%s' "$ENV_VAR_NAME" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
-    die "Environment variable name is invalid."
-  fi
 }
 
 prompt_value() {
@@ -675,7 +663,7 @@ EOF
 managed_provider_block() {
   escaped_provider_name="$(toml_escape "$PROVIDER_ID")"
   escaped_base_url="$(toml_escape "$BASE_URL")"
-  escaped_env_var_name="$(toml_escape "$ENV_VAR_NAME")"
+  escaped_api_key="$(toml_escape "$api_key")"
 
   cat <<EOF
 $BEGIN_MARKER
@@ -683,8 +671,7 @@ $BEGIN_MARKER
 name = "$escaped_provider_name"
 base_url = "$escaped_base_url"
 wire_api = "responses"
-env_key = "$escaped_env_var_name"
-env_key_instructions = "Set $escaped_env_var_name in your user environment."
+experimental_bearer_token = "$escaped_api_key"
 $END_MARKER
 EOF
 }
@@ -825,123 +812,13 @@ ensure_codex_cli() {
   fi
 }
 
-shell_profile_path() {
-  shell_name="$(basename "${SHELL:-}")"
-  case "$shell_name" in
-    zsh)
-      printf '%s\n' "$HOME/.zshrc"
-      ;;
-    bash)
-      if [ "$(uname -s)" = "Darwin" ]; then
-        printf '%s\n' "$HOME/.bash_profile"
-      else
-        printf '%s\n' "$HOME/.bashrc"
-      fi
-      ;;
-    *)
-      printf '%s\n' "$HOME/.profile"
-      ;;
-  esac
-}
-
-remove_shell_profile_env_block() {
-  profile="$(shell_profile_path)"
-  [ -f "$profile" ] || return 0
-  tmp="$profile.tmp.$$"
-  awk \
-    -v begin="# BEGIN CODEX RELAY INSTALLER ENV" \
-    -v end="# END CODEX RELAY INSTALLER ENV" '
-      $0 == begin { inside = 1; next }
-      $0 == end { inside = 0; next }
-      inside { next }
-      { print }
-    ' "$profile" > "$tmp"
-  if [ "$DRY_RUN" -eq 1 ]; then
-    rm -f "$tmp"
-    log "Would update shell profile $profile"
-  else
-    mv "$tmp" "$profile"
-  fi
-}
-
-set_persistent_env() {
-  api_key="$1"
-  profile="$(shell_profile_path)"
-  escaped_api_key="$(printf '%s' "$api_key" | sed "s/'/'\\\\''/g")"
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log "Would set shell profile environment variable $ENV_VAR_NAME in $profile"
-  else
-    mkdir -p "$(dirname "$profile")"
-    touch "$profile"
-    remove_shell_profile_env_block
-    {
-      printf '\n# BEGIN CODEX RELAY INSTALLER ENV\n'
-      printf "export %s='%s'\n" "$ENV_VAR_NAME" "$escaped_api_key"
-      printf '# END CODEX RELAY INSTALLER ENV\n'
-    } >> "$profile"
-    log "Updated shell profile: $profile"
-  fi
-
-  case "$(uname -s)" in
-    Darwin)
-      if command -v launchctl >/dev/null 2>&1; then
-        if [ "$DRY_RUN" -eq 1 ]; then
-          log "Would run launchctl setenv $ENV_VAR_NAME"
-        else
-          launchctl setenv "$ENV_VAR_NAME" "$api_key" || warn "launchctl setenv failed; restart apps from a terminal if needed."
-          log "Set $ENV_VAR_NAME for the current macOS GUI session."
-        fi
-      fi
-      ;;
-    Linux)
-      env_dir="$HOME/.config/environment.d"
-      env_file="$env_dir/codex-relay.conf"
-      if [ "$DRY_RUN" -eq 1 ]; then
-        log "Would write $env_file"
-      else
-        mkdir -p "$env_dir"
-        printf '%s=%s\n' "$ENV_VAR_NAME" "$api_key" > "$env_file"
-        log "Wrote $env_file for future user sessions where environment.d is supported."
-      fi
-      ;;
-  esac
-}
-
-clear_persistent_env() {
-  remove_shell_profile_env_block
-
-  case "$(uname -s)" in
-    Darwin)
-      if command -v launchctl >/dev/null 2>&1; then
-        if [ "$DRY_RUN" -eq 1 ]; then
-          log "Would run launchctl unsetenv $ENV_VAR_NAME"
-        else
-          launchctl unsetenv "$ENV_VAR_NAME" || true
-        fi
-      fi
-      ;;
-    Linux)
-      env_file="$HOME/.config/environment.d/codex-relay.conf"
-      if [ -f "$env_file" ]; then
-        if [ "$DRY_RUN" -eq 1 ]; then
-          log "Would remove $env_file"
-        else
-          rm -f "$env_file"
-        fi
-      fi
-      ;;
-  esac
-}
-
 invoke_doctor() {
   cfg="$(config_path)"
   configured_provider="$(config_root_value "model_provider")"
   [ -n "$configured_provider" ] || configured_provider="$PROVIDER_ID"
   configured_model="$(config_root_value "model")"
   configured_base_url="$(config_provider_value "$configured_provider" "base_url")"
-  configured_env_var="$(config_provider_value "$configured_provider" "env_key")"
-  [ -n "$configured_env_var" ] || configured_env_var="$ENV_VAR_NAME"
+  configured_api_key="$(config_provider_value "$configured_provider" "experimental_bearer_token")"
   effective_base_url="${BASE_URL:-$configured_base_url}"
 
   log "Codex home: $(codex_home)"
@@ -960,15 +837,15 @@ invoke_doctor() {
     warn "Codex CLI not found on PATH."
   fi
 
-  api_key="$(eval "printf '%s' \"\${$configured_env_var:-}\"")"
+  api_key="$configured_api_key"
   log "Configured provider: $configured_provider"
   log "Configured model: $configured_model"
   log "Configured base URL: $effective_base_url"
-  log "API key env var: $configured_env_var"
+  log "API key stored in config: $([ -n "$api_key" ] && printf true || printf false)"
   if [ -n "$api_key" ]; then
-    log "API key visible to this process: true"
+    :
   else
-    warn "API key visible to this process: false"
+    warn "API key missing from config."
   fi
 
   if [ -n "$effective_base_url" ] && [ -n "$api_key" ]; then
@@ -1025,7 +902,6 @@ invoke_test_connection() {
 
 install_relay_config() {
   assert_provider_id
-  assert_env_var_name
 
   BASE_URL="$(normalize_base_url "$(prompt_value "Relay base URL, include /v1 if your service uses it" "$BASE_URL")")"
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -1060,7 +936,7 @@ install_relay_config() {
     log "Would write config to $cfg"
     printf '\n'
     cat "$next_tmp"
-    log "Would set user environment variable $ENV_VAR_NAME"
+    log "Would store the relay API key in the Codex provider config."
     print_rerun_hints
     rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
     return
@@ -1070,17 +946,15 @@ install_relay_config() {
   backup_config
   cp "$next_tmp" "$cfg"
   rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
-  set_persistent_env "$api_key"
 
   log "Wrote Codex config: $cfg"
-  log "Set environment variable: $ENV_VAR_NAME"
-  log "Restart your terminal, VS Code, and Codex Desktop so they inherit the new environment."
+  log "Stored the relay API key in the Codex provider config."
+  log "Restart VS Code and Codex Desktop so they reload config.toml."
   log "Try: codex --version && codex"
   print_rerun_hints
 }
 
 uninstall_relay_config() {
-  assert_env_var_name
   cfg="$(config_path)"
   backup="$(latest_backup || true)"
 
@@ -1101,8 +975,7 @@ uninstall_relay_config() {
     warn "No config file found at $cfg"
   fi
 
-  clear_persistent_env
-  log "Cleared persistent environment setup for $ENV_VAR_NAME"
+  log "No environment variables are managed by this installer."
 }
 
 if [ "$DOCTOR" -eq 1 ]; then

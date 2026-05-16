@@ -63,23 +63,24 @@ sandbox = "elevated"
 name = "custom-relay"
 base_url = "https://litellm.blackwhitedeer.studio/v1"
 wire_api = "responses"
-env_key = "CODEX_RELAY_API_KEY"
-env_key_instructions = "Set CODEX_RELAY_API_KEY in your user environment."
+experimental_bearer_token = "your-relay-api-key"
 # END CODEX RELAY INSTALLER MANAGED BLOCK
 ```
 
 Rerunning the installer overwrites the old `custom-relay` provider config instead of stacking duplicate provider tables, while keeping unrelated Codex settings. Windows sandbox will be normalized into `[windows]` as `sandbox = "elevated"`. If it was accidentally appended at the end of the file and landed under another TOML table, rerunning the installer moves it back to the right table.
 
-API key 默认写入当前用户的环境变量 `CODEX_RELAY_API_KEY`，不会写进 `config.toml`。
+API key 会直接写入 `~/.codex/config.toml` 的 `experimental_bearer_token` 字段。
 
-Windows 会写入用户环境变量。Linux/macOS 会写入当前 shell profile；macOS 还会尝试 `launchctl setenv`，Linux 会额外写入 `~/.config/environment.d/codex-relay.conf`。改完后建议重启终端、VS Code 和 Codex Desktop。
+脚本不会写入用户环境变量、shell profile、`launchctl` 或 `environment.d`。改完后建议重启 VS Code 和 Codex Desktop，让它们重新读取 `config.toml`。
 
 ## 常用参数
+
+Replace `/path/to/...` or `C:\path\to\...` with the full path where the script is saved on that machine.
 
 Linux/macOS:
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --dry-run
 bash "$installer" --doctor
 bash "$installer" --test
@@ -93,7 +94,7 @@ bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model 
 Windows:
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
@@ -109,27 +110,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https:/
 诊断模式不会安装配置，只检查当前环境：
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 ```
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --doctor
 ```
 
-它会检查 Codex CLI、配置文件、API key 环境变量、模型列表接口是否可达。
+它会检查 Codex CLI、配置文件、API key 配置、模型列表接口是否可达。
 
 连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点；普通用户 key 无权读取元数据时会给出提示，但不代表请求额度不可用。
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
 ```
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
 bash "$installer" --benchmark
 ```
@@ -137,12 +138,12 @@ bash "$installer" --benchmark
 模型选择器会调用 `GET /v1/models`，让用户从中转实际返回的模型列表中选择默认模型。也可以跳过模型选择：
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -NoModelPicker -Model "gpt-5.5"
 ```
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --no-model-picker --model "gpt-5.5"
 ```
 
@@ -162,23 +163,23 @@ VS Code Codex 插件和 Codex Desktop 如果已经打开，需要完全退出后
 恢复最近一次备份：
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
 ```
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --restore
 ```
 
-卸载中转配置并清理脚本写入的环境变量配置：
+卸载中转配置：
 
 ```powershell
-$installer = "C:\Users\wjj20\Desktop\中转api安装脚本\install for Windows.ps1"
+$installer = "C:\path\to\install for Windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 ```
 
 ```bash
-installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"
+installer="/path/to/install for Linux&macOS.sh"
 bash "$installer" --uninstall
 ```

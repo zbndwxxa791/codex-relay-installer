@@ -5,8 +5,8 @@ OpenAI Responses-compatible relay.
 
 .DESCRIPTION
 This script writes a managed provider block to $CODEX_HOME/config.toml or
-~/.codex/config.toml, stores the relay API key in the current user's environment
-as CODEX_RELAY_API_KEY, and creates a timestamped config backup before changes.
+~/.codex/config.toml, stores the relay API key in that provider block, and
+creates a timestamped config backup before changes.
 #>
 
 [CmdletBinding()]
@@ -21,7 +21,6 @@ param(
     [switch]$NoModelPicker,
     [switch]$SkipCodexCheck,
     [string]$ProviderId = "custom-relay",
-    [string]$EnvVarName = "CODEX_RELAY_API_KEY",
     [string]$BaseUrl,
     [string]$Model,
     [int]$RequestTimeoutSec = 30
@@ -86,13 +85,6 @@ function Assert-ProviderId {
     param([string]$Value)
     if ($Value -notmatch '^[A-Za-z0-9_-]+$') {
         throw "ProviderId may only contain letters, numbers, underscore, and dash."
-    }
-}
-
-function Assert-EnvVarName {
-    param([string]$Value)
-    if ($Value -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
-        throw "EnvVarName must be a valid environment variable name."
     }
 }
 
@@ -214,7 +206,7 @@ function Get-ConfiguredRelay {
             Model = $null
             ProviderId = $ProviderId
             BaseUrl = $null
-            EnvVarName = $EnvVarName
+            ApiKey = $null
         }
     }
 
@@ -224,33 +216,14 @@ function Get-ConfiguredRelay {
         $configuredProviderId = $ProviderId
     }
 
-    $configuredEnvVar = Get-ProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "env_key"
-    if (-not $configuredEnvVar) {
-        $configuredEnvVar = $EnvVarName
-    }
-
     return [pscustomobject]@{
         ConfigPath = $configPath
         Exists = $true
         Model = Get-ConfigValue -Content $content -Key "model"
         ProviderId = $configuredProviderId
         BaseUrl = Get-ProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "base_url"
-        EnvVarName = $configuredEnvVar
+        ApiKey = Get-ProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "experimental_bearer_token"
     }
-}
-
-function Get-EffectiveEnvValue {
-    param([string]$Name)
-
-    $processValue = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ($processValue) {
-        return $processValue
-    }
-    $userValue = [Environment]::GetEnvironmentVariable($Name, "User")
-    if ($userValue) {
-        return $userValue
-    }
-    return [Environment]::GetEnvironmentVariable($Name, "Machine")
 }
 
 function Get-RelayModels {
@@ -536,14 +509,12 @@ function Invoke-Doctor {
     }
 
     $effectiveBaseUrl = if ($BaseUrl) { Normalize-BaseUrl $BaseUrl } elseif ($relay.BaseUrl) { $relay.BaseUrl } else { $DefaultBaseUrl }
-    $effectiveEnvVar = if ($relay.EnvVarName) { $relay.EnvVarName } else { $EnvVarName }
-    $apiKey = Get-EffectiveEnvValue $effectiveEnvVar
+    $apiKey = $relay.ApiKey
 
     Write-Step "Configured provider: $($relay.ProviderId)"
     Write-Step "Configured model: $($relay.Model)"
     Write-Step "Configured base URL: $effectiveBaseUrl"
-    Write-Step "API key env var: $effectiveEnvVar"
-    Write-Step "API key visible to this process/user: $([bool]$apiKey)"
+    Write-Step "API key stored in config: $([bool]$apiKey)"
 
     if ($effectiveBaseUrl -and $apiKey) {
         try {
@@ -690,13 +661,13 @@ $EndMarker
 function New-ManagedProviderBlock {
     param(
         [string]$ProviderId,
-        [string]$EnvVarName,
-        [string]$BaseUrl
+        [string]$BaseUrl,
+        [string]$ApiKey
     )
 
     $escapedProviderName = Escape-TomlString $ProviderId
     $escapedBaseUrl = Escape-TomlString $BaseUrl
-    $escapedEnvVarName = Escape-TomlString $EnvVarName
+    $escapedApiKey = Escape-TomlString $ApiKey
 
     return @"
 $BeginMarker
@@ -704,8 +675,7 @@ $BeginMarker
 name = "$escapedProviderName"
 base_url = "$escapedBaseUrl"
 wire_api = "responses"
-env_key = "$escapedEnvVarName"
-env_key_instructions = "Set $escapedEnvVarName in your user environment."
+experimental_bearer_token = "$escapedApiKey"
 $EndMarker
 "@
 }
@@ -871,7 +841,6 @@ function Ensure-CodexCli {
 
 function Install-RelayConfig {
     Assert-ProviderId $ProviderId
-    Assert-EnvVarName $EnvVarName
 
     $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
@@ -893,14 +862,14 @@ function Install-RelayConfig {
     $clean = Ensure-WindowsSandboxConfig $clean
     $split = Split-ConfigAtFirstTable -Content $clean
     $rootBlock = New-ManagedRootBlock -ProviderId $ProviderId -Model $resolvedModel
-    $providerBlock = New-ManagedProviderBlock -ProviderId $ProviderId -EnvVarName $EnvVarName -BaseUrl $resolvedBaseUrl
+    $providerBlock = New-ManagedProviderBlock -ProviderId $ProviderId -BaseUrl $resolvedBaseUrl -ApiKey $apiKey
     $nextContent = Join-ConfigSections -Sections @($rootBlock, $split.Root, $split.Tables, $providerBlock)
 
     if ($DryRun) {
         Write-Step "Would write config to $configPath"
         Write-Host ""
         Write-Host $nextContent
-        Write-Step "Would set user environment variable $EnvVarName"
+        Write-Step "Would store the relay API key in the Codex provider config."
         Write-ReRunHints
         return
     }
@@ -912,18 +881,15 @@ function Install-RelayConfig {
     }
 
     Set-Content -LiteralPath $configPath -Value $nextContent -Encoding UTF8 -NoNewline
-    [Environment]::SetEnvironmentVariable($EnvVarName, $apiKey, "User")
-    Set-Item -Path "Env:$EnvVarName" -Value $apiKey
 
     Write-Step "Wrote Codex config: $configPath"
-    Write-Step "Set user environment variable: $EnvVarName"
-    Write-Step "Restart PowerShell, VS Code, and Codex Desktop so they inherit the new environment."
+    Write-Step "Stored the relay API key in the Codex provider config."
+    Write-Step "Restart VS Code and Codex Desktop so they reload config.toml."
     Write-Step "Try: codex --version ; codex"
     Write-ReRunHints
 }
 
 function Uninstall-RelayConfig {
-    Assert-EnvVarName $EnvVarName
     $configPath = Get-ConfigPath
 
     $backup = Get-LatestBackup $configPath
@@ -948,13 +914,7 @@ function Uninstall-RelayConfig {
         Write-Warn "No config file found at $configPath"
     }
 
-    if ($DryRun) {
-        Write-Step "Would clear user environment variable $EnvVarName"
-    } else {
-        [Environment]::SetEnvironmentVariable($EnvVarName, $null, "User")
-        Remove-Item "Env:$EnvVarName" -ErrorAction SilentlyContinue
-        Write-Step "Cleared user environment variable: $EnvVarName"
-    }
+    Write-Step "No environment variables are managed by this installer."
 }
 
 $exclusiveModeCount = (@($Restore, $Uninstall, $Doctor, $TestConnection, $Benchmark, $ListModels) | Where-Object { $_ }).Count

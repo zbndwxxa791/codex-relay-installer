@@ -22,10 +22,13 @@ def test_windows_installer_contract():
     assert "[switch]$Benchmark" in text
     assert "[switch]$ListModels" in text
     assert "[switch]$NoModelPicker" in text
-    assert "CODEX_RELAY_API_KEY" in text
+    assert "EnvVarName" not in text
     assert "wire_api = \"responses\"" in text
     assert "model_provider = \"$ProviderId\"" in text
-    assert "[Environment]::SetEnvironmentVariable" in text
+    assert "experimental_bearer_token" in text
+    assert "env_key =" not in text
+    assert "env_key_instructions" not in text
+    assert "[Environment]::SetEnvironmentVariable" not in text
     assert "Invoke-RestMethod" in text
     assert "Invoke-WebRequest" in text
     assert "Measure-RelayRequest" in text
@@ -41,7 +44,6 @@ def test_windows_installer_contract():
     assert ".backup-" in text
     assert "BEGIN CODEX RELAY INSTALLER MANAGED BLOCK" in text
     assert "END CODEX RELAY INSTALLER MANAGED BLOCK" in text
-    assert "experimental_bearer_token" not in text
 
 
 def test_unix_installer_contract():
@@ -57,9 +59,14 @@ def test_unix_installer_contract():
     assert "--benchmark" in text
     assert "--list-models" in text
     assert "--no-model-picker" in text
-    assert "CODEX_RELAY_API_KEY" in text
+    assert "--env-var-name" not in text
+    assert "CODEX_RELAY_API_KEY" not in text
     assert 'wire_api = "responses"' in text
     assert 'model_provider = "$PROVIDER_ID"' in text
+    assert "experimental_bearer_token" in text
+    assert "env_key =" not in text
+    assert "env_key_instructions" not in text
+    assert "set_persistent_env" not in text
     assert "curl" in text
     assert "timed_curl_json" in text
     assert "invoke_benchmark" in text
@@ -74,7 +81,6 @@ def test_unix_installer_contract():
     assert ".backup-" in text
     assert "BEGIN CODEX RELAY INSTALLER MANAGED BLOCK" in text
     assert "END CODEX RELAY INSTALLER MANAGED BLOCK" in text
-    assert "experimental_bearer_token" not in text
 
 
 def test_readme_contains_public_distribution_commands():
@@ -85,7 +91,8 @@ def test_readme_contains_public_distribution_commands():
     assert "install for Windows.ps1" in text
     assert "install for Linux&macOS.sh" in text
     assert "Responses API" in text
-    assert "CODEX_RELAY_API_KEY" in text
+    assert "experimental_bearer_token" in text
+    assert "CODEX_RELAY_API_KEY" not in text
     assert "--dry-run" in text
     assert "--doctor" in text
     assert "--test" in text
@@ -99,7 +106,9 @@ def test_readme_contains_public_distribution_commands():
 def test_readme_uses_full_local_script_paths():
     text = read_text("README.md")
 
-    assert '$installer = "C:\\Users\\wjj20\\Desktop\\中转api安装脚本\\install for Windows.ps1"' in text
-    assert 'installer="$HOME/Desktop/中转api安装脚本/install for Linux&macOS.sh"' in text
+    assert '$installer = "C:\\path\\to\\install for Windows.ps1"' in text
+    assert 'installer="/path/to/install for Linux&macOS.sh"' in text
+    assert "C:\\Users\\wjj20" not in text
+    assert "/c/Users/wjj20" not in text
     assert '-File ".\\install for Windows.ps1"' not in text
     assert 'bash "install for Linux&macOS.sh"' not in text
