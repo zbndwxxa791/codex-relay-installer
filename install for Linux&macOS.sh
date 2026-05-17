@@ -804,11 +804,54 @@ ensure_codex_cli() {
     return
   fi
 
-  command -v npm >/dev/null 2>&1 || die "npm was not found. Install Node.js first, then run: npm i -g @openai/codex"
+  ensure_npm_available
   if [ "$DRY_RUN" -eq 1 ]; then
     log "Would run: npm i -g @openai/codex"
   else
     npm i -g @openai/codex
+  fi
+}
+
+load_nvm_if_available() {
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [ -s "$NVM_DIR/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$NVM_DIR/nvm.sh"
+  fi
+}
+
+install_node_runtime() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would install Node.js LTS with nvm if npm is missing."
+    return
+  fi
+
+  load_nvm_if_available
+  if ! command -v nvm >/dev/null 2>&1; then
+    command -v curl >/dev/null 2>&1 || die "npm was not found and curl is unavailable. Install Node.js LTS from https://nodejs.org/ or use NodeSource, then rerun this installer."
+    if ! answer_yes "npm was not found. Install nvm and Node.js LTS now?"; then
+      die "Node.js and npm are required to install Codex CLI. Install Node.js LTS, then rerun this installer."
+    fi
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+    load_nvm_if_available
+  fi
+
+  command -v nvm >/dev/null 2>&1 || die "nvm installation finished but nvm is not available in this shell. Open a new terminal and rerun this installer."
+  nvm install --lts
+  nvm use --lts
+}
+
+ensure_npm_available() {
+  if command -v npm >/dev/null 2>&1; then
+    return
+  fi
+
+  warn "npm was not found. Node.js LTS is required before Codex CLI can be installed."
+  warn "Linux users can also install Node.js through NodeSource if they prefer a system package."
+  install_node_runtime
+
+  if ! command -v npm >/dev/null 2>&1; then
+    die "Node.js LTS installation finished, but npm is not available in this shell. Open a new terminal and rerun this installer."
   fi
 }
 

@@ -31,6 +31,10 @@ def test_windows_installer_contract():
     assert "[Environment]::SetEnvironmentVariable" not in text
     assert "Invoke-RestMethod" in text
     assert "Invoke-WebRequest" in text
+    assert "Find-NpmCommand" in text
+    assert "Ensure-NpmAvailable" in text
+    assert "OpenJS.NodeJS.LTS" in text
+    assert "winget" in text
     assert "Measure-RelayRequest" in text
     assert "Invoke-Benchmark" in text
     assert "Get-ScriptPathForHelp" in text
@@ -68,6 +72,10 @@ def test_unix_installer_contract():
     assert "env_key_instructions" not in text
     assert "set_persistent_env" not in text
     assert "curl" in text
+    assert "load_nvm_if_available" in text
+    assert "ensure_npm_available" in text
+    assert "nvm install --lts" in text
+    assert "NodeSource" in text
     assert "timed_curl_json" in text
     assert "invoke_benchmark" in text
     assert "script_path_for_help" in text
@@ -94,6 +102,10 @@ def test_readme_contains_public_distribution_commands():
     assert "experimental_bearer_token" in text
     assert "CODEX_RELAY_API_KEY" not in text
     assert "--dry-run" in text
+    assert "Node.js LTS" in text
+    assert "npm" in text
+    assert "winget" in text
+    assert "nvm" in text
     assert "--doctor" in text
     assert "--test" in text
     assert "--benchmark" in text

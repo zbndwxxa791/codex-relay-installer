@@ -805,6 +805,79 @@ function Restore-Config {
     Write-Step "Restored config from $($backup.FullName)"
 }
 
+function Find-NpmCommand {
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($npm) {
+        return $npm
+    }
+
+    $npm = Get-Command npm -ErrorAction SilentlyContinue
+    if ($npm) {
+        return $npm
+    }
+
+    $candidateDirs = @()
+    if ($env:ProgramFiles) {
+        $candidateDirs += (Join-Path $env:ProgramFiles "nodejs")
+    }
+    ${env:ProgramFiles(x86)} | ForEach-Object {
+        if ($_) {
+            $candidateDirs += (Join-Path $_ "nodejs")
+        }
+    }
+
+    foreach ($dir in $candidateDirs) {
+        $candidate = Join-Path $dir "npm.cmd"
+        if (Test-Path -LiteralPath $candidate) {
+            if ($env:PATH -notlike "*$dir*") {
+                $env:PATH = "$dir;$env:PATH"
+            }
+            return Get-Command $candidate -ErrorAction SilentlyContinue
+        }
+    }
+
+    return $null
+}
+
+function Install-NodeRuntime {
+    if ($DryRun) {
+        Write-Step "Would install Node.js LTS with winget package OpenJS.NodeJS.LTS if npm is missing."
+        return
+    }
+
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw "npm was not found and winget is unavailable. Install Node.js LTS from https://nodejs.org/, restart PowerShell, then rerun this installer."
+    }
+
+    $answer = Read-Host "npm was not found. Install Node.js LTS now with winget (OpenJS.NodeJS.LTS)? [y/N]"
+    if ($answer -notmatch '^(y|yes)$') {
+        throw "Node.js and npm are required to install Codex CLI. Install Node.js LTS, restart PowerShell, then rerun this installer."
+    }
+
+    & $winget.Source install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw "winget failed to install Node.js LTS. Install Node.js LTS from https://nodejs.org/, restart PowerShell, then rerun this installer."
+    }
+}
+
+function Ensure-NpmAvailable {
+    $npm = Find-NpmCommand
+    if ($npm) {
+        return $npm
+    }
+
+    Write-Warn "npm was not found. Node.js LTS is required before Codex CLI can be installed."
+    Install-NodeRuntime
+
+    $npm = Find-NpmCommand
+    if ($npm) {
+        return $npm
+    }
+
+    throw "Node.js LTS installation finished, but npm is not available in this PowerShell session. Open a new PowerShell window and rerun this installer."
+}
+
 function Ensure-CodexCli {
     if ($SkipCodexCheck) {
         return
@@ -823,13 +896,7 @@ function Ensure-CodexCli {
         return
     }
 
-    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
-    if (-not $npm) {
-        $npm = Get-Command npm -ErrorAction SilentlyContinue
-    }
-    if (-not $npm) {
-        throw "npm was not found. Install Node.js first, then run: npm i -g @openai/codex"
-    }
+    $npm = Ensure-NpmAvailable
 
     if ($DryRun) {
         Write-Step "Would run: npm i -g @openai/codex"

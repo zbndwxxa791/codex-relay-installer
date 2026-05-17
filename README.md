@@ -11,6 +11,7 @@ Responses API 兼容中转服务。
 - base URL 默认使用 `https://litellm.blackwhitedeer.studio/v1`，也可以用参数覆盖。
 - 用户需要有自己的 API key。
 - Codex CLI、Codex Desktop、VS Code Codex 插件共享 `~/.codex/config.toml`。脚本写好这个文件后，三个入口会读取同一套 provider 配置。
+- 如果用户主机没有 Node.js/npm，脚本在需要安装 Codex CLI 时会先尝试补齐 Node.js LTS：Windows 使用 `winget` 安装 `OpenJS.NodeJS.LTS`，Linux/macOS 使用 `nvm` 安装 LTS。若这些工具不可用，脚本会给出明确的手动安装提示。
 
 ## 一键运行
 
@@ -38,6 +39,8 @@ bash "$tmp"
 
 - relay API key
 - default model，脚本会优先尝试从 `GET /v1/models` 拉取模型列表，让用户选择；失败时再手动输入
+
+如果本机还没有 Codex CLI，脚本会询问是否执行 `npm i -g @openai/codex`。当 npm 不存在时，脚本会先引导安装 Node.js LTS，而不是直接报错退出。
 
 ## 会写入什么
 
