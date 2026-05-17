@@ -618,7 +618,7 @@ remove_managed_config() {
       $0 == end { inside = 0; next }
       inside { next }
       !seen_table && $0 ~ /^[[:space:]]*\[/ { seen_table = 1 }
-      remove_top == "1" && !seen_table && $0 ~ /^[[:space:]]*(model|model_provider)[[:space:]]*=/ { next }
+      remove_top == "1" && !seen_table && $0 ~ /^[[:space:]]*(model|model_provider|model_reasoning_effort)[[:space:]]*=/ { next }
       { print }
     ' "$input_file"
 }
@@ -649,6 +649,36 @@ remove_relay_provider_config() {
   ' "$input_file" > "$output_file"
 }
 
+remove_project_config() {
+  input_file="$1"
+  output_file="$2"
+  project_path="$3"
+
+  if [ ! -f "$input_file" ]; then
+    : > "$output_file"
+    return
+  fi
+
+  awk -v project="$project_path" '
+    function table_name(line, name) {
+      name = line
+      sub(/^[[:space:]]*\[/, "", name)
+      sub(/\][[:space:]]*$/, "", name)
+      return name
+    }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      current_table = table_name($0)
+      if (current_table == "projects.\"" project "\"" || current_table == "projects.\047" project "\047") {
+        inside_target_project = 1
+        next
+      }
+      inside_target_project = 0
+    }
+    inside_target_project { next }
+    { print }
+  ' "$input_file" > "$output_file"
+}
+
 managed_root_block() {
   escaped_model="$(toml_escape "$MODEL")"
 
@@ -656,7 +686,17 @@ managed_root_block() {
 $BEGIN_MARKER
 model = "$escaped_model"
 model_provider = "$PROVIDER_ID"
+model_reasoning_effort = "high"
 $END_MARKER
+EOF
+}
+
+trusted_project_block() {
+  escaped_project_path="$(toml_escape "$project_path")"
+
+  cat <<EOF
+[projects."$escaped_project_path"]
+trust_level = "trusted"
 EOF
 }
 
@@ -946,13 +986,14 @@ invoke_test_connection() {
 install_relay_config() {
   assert_provider_id
 
-  BASE_URL="$(normalize_base_url "$(prompt_value "Relay base URL, include /v1 if your service uses it" "$BASE_URL")")"
+  BASE_URL="$(normalize_base_url "$BASE_URL")"
   if [ "$DRY_RUN" -eq 1 ]; then
     api_key="__dry_run_api_key_not_written__"
   else
     api_key="$(prompt_secret)"
   fi
   MODEL="$(select_model "$BASE_URL" "$api_key" "$MODEL")"
+  project_path="$(pwd -P)"
 
   ensure_codex_cli
 
@@ -961,19 +1002,23 @@ install_relay_config() {
   clean_tmp="$(mktemp)"
   provider_clean_tmp="$(mktemp)"
   sandbox_tmp="$(mktemp)"
+  project_clean_tmp="$(mktemp)"
   root_tmp="$(mktemp)"
   table_tmp="$(mktemp)"
   root_block_tmp="$(mktemp)"
+  project_block_tmp="$(mktemp)"
   provider_block_tmp="$(mktemp)"
   next_tmp="$(mktemp)"
 
   remove_managed_config "$cfg" "1" > "$clean_tmp"
   remove_relay_provider_config "$clean_tmp" "$provider_clean_tmp"
-  ensure_windows_sandbox_config "$provider_clean_tmp" "$sandbox_tmp"
+  remove_project_config "$provider_clean_tmp" "$project_clean_tmp" "$project_path"
+  ensure_windows_sandbox_config "$project_clean_tmp" "$sandbox_tmp"
   split_config_at_first_table "$sandbox_tmp" "$root_tmp" "$table_tmp"
   managed_root_block > "$root_block_tmp"
+  trusted_project_block > "$project_block_tmp"
   managed_provider_block > "$provider_block_tmp"
-  join_config_sections "$root_block_tmp" "$root_tmp" "$table_tmp" "$provider_block_tmp" > "$next_tmp"
+  join_config_sections "$root_block_tmp" "$root_tmp" "$project_block_tmp" "$table_tmp" "$provider_block_tmp" > "$next_tmp"
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "Would write config to $cfg"
@@ -981,14 +1026,14 @@ install_relay_config() {
     cat "$next_tmp"
     log "Would store the relay API key in the Codex provider config."
     print_rerun_hints
-    rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+    rm -f "$clean_tmp" "$provider_clean_tmp" "$project_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$project_block_tmp" "$provider_block_tmp" "$next_tmp"
     return
   fi
 
   mkdir -p "$mkdir_arg"
   backup_config
   cp "$next_tmp" "$cfg"
-  rm -f "$clean_tmp" "$provider_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$provider_block_tmp" "$next_tmp"
+  rm -f "$clean_tmp" "$provider_clean_tmp" "$project_clean_tmp" "$sandbox_tmp" "$root_tmp" "$table_tmp" "$root_block_tmp" "$project_block_tmp" "$provider_block_tmp" "$next_tmp"
 
   log "Wrote Codex config: $cfg"
   log "Stored the relay API key in the Codex provider config."

@@ -56,10 +56,14 @@ bash "$tmp"
 # BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 model = "gpt-5.5"
 model_provider = "custom-relay"
+model_reasoning_effort = "high"
 # END CODEX RELAY INSTALLER MANAGED BLOCK
 
 [windows]
 sandbox = "elevated"
+
+[projects."/path/to/current/project"]
+trust_level = "trusted"
 
 # BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 [model_providers.custom-relay]

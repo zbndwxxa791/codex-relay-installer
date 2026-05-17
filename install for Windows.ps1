@@ -593,7 +593,7 @@ function Remove-ManagedConfig {
             continue
         }
 
-        if ($RemoveTopLevelDefaults -and -not $insideAnyTable -and $line -match '^\s*(model|model_provider)\s*=') {
+        if ($RemoveTopLevelDefaults -and -not $insideAnyTable -and $line -match '^\s*(model|model_provider|model_reasoning_effort)\s*=') {
             continue
         }
 
@@ -654,6 +654,7 @@ function New-ManagedRootBlock {
 $BeginMarker
 model = "$escapedModel"
 model_provider = "$ProviderId"
+model_reasoning_effort = "high"
 $EndMarker
 "@
 }
@@ -678,6 +679,32 @@ wire_api = "responses"
 experimental_bearer_token = "$escapedApiKey"
 $EndMarker
 "@
+}
+
+function New-TrustedProjectBlock {
+    param([string]$ProjectPath)
+
+    $escapedProjectPath = Escape-TomlString $ProjectPath
+
+    return @"
+[projects."$escapedProjectPath"]
+trust_level = "trusted"
+"@
+}
+
+function Remove-ProjectConfig {
+    param(
+        [string]$Content,
+        [string]$ProjectPath
+    )
+
+    if (-not $Content) {
+        return ""
+    }
+
+    $escapedProjectPath = [regex]::Escape($ProjectPath)
+    $pattern = "(?ms)^\s*\[projects\.(?:`"$escapedProjectPath`"|'$escapedProjectPath')\]\s*`r?`n[\s\S]*?(?=^\s*\[|\z)"
+    return ([regex]::Replace($Content, $pattern, "")).TrimEnd()
 }
 
 function Split-ConfigAtFirstTable {
@@ -924,13 +951,16 @@ function Install-RelayConfig {
         ""
     }
 
+    $projectPath = (Get-Location).ProviderPath
     $clean = Remove-ManagedConfig -Content $existing -RemoveTopLevelDefaults
     $clean = Remove-RelayProviderConfig -Content $clean -ProviderId $ProviderId
+    $clean = Remove-ProjectConfig -Content $clean -ProjectPath $projectPath
     $clean = Ensure-WindowsSandboxConfig $clean
     $split = Split-ConfigAtFirstTable -Content $clean
     $rootBlock = New-ManagedRootBlock -ProviderId $ProviderId -Model $resolvedModel
+    $projectBlock = New-TrustedProjectBlock -ProjectPath $projectPath
     $providerBlock = New-ManagedProviderBlock -ProviderId $ProviderId -BaseUrl $resolvedBaseUrl -ApiKey $apiKey
-    $nextContent = Join-ConfigSections -Sections @($rootBlock, $split.Root, $split.Tables, $providerBlock)
+    $nextContent = Join-ConfigSections -Sections @($rootBlock, $split.Root, $projectBlock, $split.Tables, $providerBlock)
 
     if ($DryRun) {
         Write-Step "Would write config to $configPath"
