@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE_URL = "https://litellm.blackwhitedeer.studio/v1"
+CLAUDE_DEFAULT_BASE_URL = "https://litellm.blackwhitedeer.studio"
 
 
 def read_text(name: str) -> str:
@@ -134,3 +135,75 @@ def test_readme_uses_full_local_script_paths():
     assert "/c/Users/wjj20" not in text
     assert '-File ".\\install for Windows.ps1"' not in text
     assert 'bash "install for Linux&macOS.sh"' not in text
+
+
+def test_claude_code_windows_installer_contract():
+    text = read_text("install Claude Code for Windows.ps1")
+
+    assert f'$DefaultBaseUrl = "{CLAUDE_DEFAULT_BASE_URL}"' in text
+    assert "[switch]$DryRun" in text
+    assert "[switch]$Uninstall" in text
+    assert "[switch]$Restore" in text
+    assert "[switch]$Doctor" in text
+    assert "[switch]$TestConnection" in text
+    assert "[switch]$ListModels" in text
+    assert "Get-SettingsPath" in text
+    assert "~/.claude/settings.json" in text
+    assert "ANTHROPIC_BASE_URL" in text
+    assert "ANTHROPIC_AUTH_TOKEN" in text
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
+    assert "anthropic-version" in text
+    assert "messages" in text
+    assert "models" in text
+    assert ".backup-" in text
+    assert "experimental_bearer_token" not in text
+    assert "wire_api" not in text
+
+
+def test_claude_code_unix_installer_contract():
+    text = read_text("install Claude Code for Linux&macOS.sh")
+
+    assert "set -euo pipefail" in text
+    assert f'DEFAULT_BASE_URL="{CLAUDE_DEFAULT_BASE_URL}"' in text
+    assert "--dry-run" in text
+    assert "--uninstall" in text
+    assert "--restore" in text
+    assert "--doctor" in text
+    assert "--test" in text
+    assert "--list-models" in text
+    assert "settings.json" in text
+    assert "ANTHROPIC_BASE_URL" in text
+    assert "ANTHROPIC_AUTH_TOKEN" in text
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
+    assert "anthropic-version" in text
+    assert "messages" in text
+    assert "models" in text
+    assert ".backup-" in text
+    assert "experimental_bearer_token" not in text
+    assert "wire_api" not in text
+
+
+def test_claude_code_docs_contract():
+    docs = [
+        read_text("Claude Code中转安装说明.md"),
+        read_text("Claude Code手动修改配置.md"),
+        read_text("Claude Code服务器部署与排障说明.md"),
+    ]
+    combined = "\n".join(docs)
+
+    assert CLAUDE_DEFAULT_BASE_URL in combined
+    assert "ANTHROPIC_BASE_URL" in combined
+    assert "ANTHROPIC_AUTH_TOKEN" in combined
+    assert "VS Code Claude Code" in combined
+    assert "Windows" in combined
+    assert "Linux" in combined
+    assert "macOS" in combined
+    assert "Remote SSH" in combined
+    assert "your-relay-api-key" in combined
+    assert "替换成你的 relay API key" in combined
