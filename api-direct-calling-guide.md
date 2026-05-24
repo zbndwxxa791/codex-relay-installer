@@ -1,6 +1,6 @@
-# API 直接调用教程
+# LiteLLM API 直接调用指南
 
-这个教程演示如何绕过 Codex / Claude Code 安装脚本，直接用 OpenAI Python SDK 请求 LiteLLM 中转 API。
+这份指南演示如何绕过 Codex / Claude Code 安装脚本，直接用 OpenAI Python SDK 或 curl 请求 LiteLLM 中转 API。
 
 默认中转地址：
 

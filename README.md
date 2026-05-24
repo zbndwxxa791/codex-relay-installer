@@ -5,6 +5,16 @@ Responses API 兼容中转服务。
 
 这个项目适合公开分发给用户运行。脚本内置默认 base URL，但不会包含你的 API key；用户在本机终端交互粘贴自己的 key。
 
+## 文档索引
+
+- Codex 一键安装：本 README
+- Codex 手动配置：[codex-manual-config.md](codex-manual-config.md)
+- Codex 服务器排障：[codex-server-debug.md](codex-server-debug.md)
+- Claude Code 一键安装：[claude-code-relay-installation.md](claude-code-relay-installation.md)
+- Claude Code 手动配置：[claude-code-manual-config.md](claude-code-manual-config.md)
+- Claude Code 服务器排障：[claude-code-server-debug.md](claude-code-server-debug.md)
+- 直接调用 API：[api-direct-calling-guide.md](api-direct-calling-guide.md)
+
 ## 前提
 
 - 中转服务必须支持 OpenAI Responses API。
@@ -15,12 +25,12 @@ Responses API 兼容中转服务。
 
 ## 一键运行
 
-把下面的 `RAW_URL` 替换成你发布后的真实 raw 文件地址。
+如果你 fork 了这个项目，把下面的 URL 换成自己仓库里的 raw 文件地址。
 
 ### Windows PowerShell
 
 ```powershell
-$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Windows.ps1"
+$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-windows.ps1"
 $file = Join-Path $env:TEMP "install-codex-relay-windows.ps1"
 Invoke-RestMethod $url -OutFile $file
 powershell -NoProfile -ExecutionPolicy Bypass -File $file
@@ -29,7 +39,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $file
 ### Linux / macOS
 
 ```bash
-url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Linux%26macOS.sh"
+url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh"
 tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp"

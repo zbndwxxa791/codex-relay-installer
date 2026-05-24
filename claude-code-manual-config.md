@@ -1,4 +1,4 @@
-# Claude Code 手动修改配置
+# Claude Code 手动配置指南
 
 如果不运行脚本，也可以手动配置 Claude Code CLI 和 VS Code Claude Code 插件。两者共享：
 

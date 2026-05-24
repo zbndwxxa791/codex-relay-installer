@@ -1,4 +1,4 @@
-# 手动修改 Codex 中转配置
+# Codex 手动配置指南
 
 这份说明用于无法运行安装脚本，或者不想让脚本自动改配置时，手动把 Codex CLI、Codex Desktop 和 VS Code Codex 插件切到自己的 Responses API 兼容中转服务。
 

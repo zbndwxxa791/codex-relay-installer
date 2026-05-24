@@ -1,4 +1,4 @@
-# Claude Code 服务器部署与排障说明
+# Claude Code 服务器部署与排障
 
 这份说明用于服务器、远程开发机、VS Code Remote SSH、云主机和多系统环境。核心原则只有一个：
 

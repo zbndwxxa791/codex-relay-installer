@@ -1,4 +1,4 @@
-# Claude Code 中转安装说明
+# Claude Code Relay 安装指南
 
 这套脚本用于把 Claude Code CLI 和 VS Code Claude Code 插件切换到支持 Anthropic Messages 协议的中转服务。两者共享同一个用户级配置文件：
 

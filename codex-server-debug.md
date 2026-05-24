@@ -1,8 +1,20 @@
-# Linux 服务器安装与故障排查
+# Codex 服务器部署与排障
 
-这份说明用于你在 Linux 服务器上部署 Codex Relay Installer。它特别适合这些情况：服务器系统比较旧、网络不稳定、Node.js/npm/Codex CLI 缺失，或者终端命令经常出现“未识别”“找不到命令”“连接超时”等问题。
+这份说明用于在 Linux 服务器、云主机或 VS Code Remote SSH 远端环境中部署 Codex Relay Installer。它特别适合这些情况：服务器系统比较旧、网络不稳定、Node.js/npm/Codex CLI 缺失，或者终端命令经常出现“未识别”“找不到命令”“连接超时”等问题。
 
-本安装器实际安装和配置的是 Codex CLI。安装包名是 `@openai/codex`，安装后命令是 `codex`。如果你习惯把它叫做 `openai-cli`，请注意：本安装器不会安装一个名为 `openai-cli` 的命令。
+本安装器实际安装和配置的是 Codex CLI。安装包名是 `@openai/codex`，安装后命令是 `codex`。服务器上的 Codex CLI、VS Code Codex 远端插件和同一用户下的 Codex 配置共享：
+
+```text
+~/.codex/config.toml
+```
+
+默认中转地址是：
+
+```text
+https://litellm.blackwhitedeer.studio/v1
+```
+
+如果你习惯把它叫做 `openai-cli`，请注意：本安装器不会安装一个名为 `openai-cli` 的命令。
 
 ## 推荐流程
 
@@ -192,23 +204,13 @@ command -v codex
 能访问 GitHub 时：
 
 ```bash
-url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Linux%26macOS.sh"
+url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh"
 tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp" --doctor
 ```
 
-文件名里有 `&`，所以必须加引号。不要写成：
-
-```bash
-bash /tmp/install-codex-relay-linux-macos.sh
-```
-
-正确写法是：
-
-```bash
-bash "/tmp/install-codex-relay-linux-macos.sh"
-```
+文档示例统一给脚本路径加引号，避免路径里有空格或特殊字符时出错。
 
 先跑诊断：
 

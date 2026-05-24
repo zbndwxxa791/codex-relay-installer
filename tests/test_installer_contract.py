@@ -193,7 +193,7 @@ def test_claude_code_docs_contract():
     docs = [
         read_text("claude-code-relay-installation.md"),
         read_text("claude-code-manual-config.md"),
-        read_text("claude-code-server-deployment-troubleshooting.md"),
+        read_text("claude-code-server-debug.md"),
     ]
     combined = "\n".join(docs)
 
