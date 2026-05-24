@@ -26,7 +26,7 @@ def test_windows_installer_contract():
     assert "EnvVarName" not in text
     assert "wire_api = \"responses\"" in text
     assert "model_provider = \"$ProviderId\"" in text
-    assert 'model_reasoning_effort = "high"' in text
+    assert 'model_reasoning_effort = "xhigh"' in text
     assert "New-TrustedProjectBlock" in text
     assert "Remove-ProjectConfig" in text
     assert "[projects." in text
@@ -72,7 +72,7 @@ def test_unix_installer_contract():
     assert "CODEX_RELAY_API_KEY" not in text
     assert 'wire_api = "responses"' in text
     assert 'model_provider = "$PROVIDER_ID"' in text
-    assert 'model_reasoning_effort = "high"' in text
+    assert 'model_reasoning_effort = "xhigh"' in text
     assert "trusted_project_block" in text
     assert "remove_project_config" in text
     assert "[projects." in text
@@ -109,7 +109,7 @@ def test_readme_contains_public_distribution_commands():
     assert "install for Linux&macOS.sh" in text
     assert "Responses API" in text
     assert "experimental_bearer_token" in text
-    assert 'model_reasoning_effort = "high"' in text
+    assert 'model_reasoning_effort = "xhigh"' in text
     assert "[projects." in text
     assert "CODEX_RELAY_API_KEY" not in text
     assert "--dry-run" in text

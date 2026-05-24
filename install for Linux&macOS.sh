@@ -686,7 +686,7 @@ managed_root_block() {
 $BEGIN_MARKER
 model = "$escaped_model"
 model_provider = "$PROVIDER_ID"
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 $END_MARKER
 EOF
 }

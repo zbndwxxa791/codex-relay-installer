@@ -654,7 +654,7 @@ function New-ManagedRootBlock {
 $BeginMarker
 model = "$escapedModel"
 model_provider = "$ProviderId"
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 $EndMarker
 "@
 }
