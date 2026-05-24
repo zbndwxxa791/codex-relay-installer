@@ -1,33 +1,62 @@
-# Codex Relay Installer
+# Codex / Claude Code Relay Installer
 
-一键把 Codex CLI、Codex Desktop 和 VS Code Codex 插件切到你自己的 OpenAI
-Responses API 兼容中转服务。
+这个仓库提供一组可公开分发的安装脚本和说明文档，用来把本机或服务器上的 AI 编程工具切换到 LiteLLM 中转服务。
 
-这个项目适合公开分发给用户运行。脚本内置默认 base URL，但不会包含你的 API key；用户在本机终端交互粘贴自己的 key。
+当前支持两条配置路径：
 
-## 文档索引
+- Codex CLI、Codex Desktop、VS Code Codex 插件：使用 OpenAI Responses API 兼容中转，配置写入 `~/.codex/config.toml`。
+- Claude Code CLI、VS Code Claude Code 插件：使用 Anthropic Messages 兼容中转，配置写入 `~/.claude/settings.json`。
 
-- Codex 一键安装：本 README
-- Codex 手动配置：[codex-manual-config.md](codex-manual-config.md)
-- Codex 服务器排障：[codex-server-debug.md](codex-server-debug.md)
-- Claude Code 一键安装：[claude-code-relay-installation.md](claude-code-relay-installation.md)
-- Claude Code 手动配置：[claude-code-manual-config.md](claude-code-manual-config.md)
-- Claude Code 服务器排障：[claude-code-server-debug.md](claude-code-server-debug.md)
-- 直接调用 API：[api-direct-calling-guide.md](api-direct-calling-guide.md)
+脚本内置默认 base URL，但不会包含你的 API key。运行时由用户在本机终端交互输入自己的 key。
+
+## 文件速览
+
+| 用途 | 文件 |
+| --- | --- |
+| Codex Windows 安装脚本 | [install-codex-relay-windows.ps1](install-codex-relay-windows.ps1) |
+| Codex Linux/macOS 安装脚本 | [install-codex-relay-linux-macos.sh](install-codex-relay-linux-macos.sh) |
+| Claude Code Windows 安装脚本 | [install-claude-code-relay-windows.ps1](install-claude-code-relay-windows.ps1) |
+| Claude Code Linux/macOS 安装脚本 | [install-claude-code-relay-linux-macos.sh](install-claude-code-relay-linux-macos.sh) |
+| Codex 手动配置 | [codex-manual-config.md](codex-manual-config.md) |
+| Codex 服务器排障 | [codex-server-debug.md](codex-server-debug.md) |
+| Claude Code 安装说明 | [claude-code-relay-installation.md](claude-code-relay-installation.md) |
+| Claude Code 手动配置 | [claude-code-manual-config.md](claude-code-manual-config.md) |
+| Claude Code 服务器排障 | [claude-code-server-debug.md](claude-code-server-debug.md) |
+| 直接调用 API | [api-direct-calling-guide.md](api-direct-calling-guide.md) |
+
+## 默认地址
+
+Codex 使用 OpenAI Responses API 兼容地址，默认 base URL 带 `/v1`：
+
+```text
+https://litellm.blackwhitedeer.studio/v1
+```
+
+Claude Code 使用 Anthropic Messages 兼容地址，默认 base URL 不带 `/v1`：
+
+```text
+https://litellm.blackwhitedeer.studio
+```
+
+Claude Code 会自己请求：
+
+```text
+https://litellm.blackwhitedeer.studio/v1/models
+https://litellm.blackwhitedeer.studio/v1/messages
+```
 
 ## 前提
 
-- 中转服务必须支持 OpenAI Responses API。
-- base URL 默认使用 `https://litellm.blackwhitedeer.studio/v1`，也可以用参数覆盖。
-- 用户需要有自己的 API key。
-- Codex CLI、Codex Desktop、VS Code Codex 插件共享 `~/.codex/config.toml`。脚本写好这个文件后，三个入口会读取同一套 provider 配置。
-- 如果用户主机没有 Node.js/npm，脚本在需要安装 Codex CLI 时会先尝试补齐 Node.js LTS：Windows 使用 `winget` 安装 `OpenJS.NodeJS.LTS`，Linux/macOS 使用 `nvm` 安装 LTS。若这些工具不可用，脚本会给出明确的手动安装提示。
+- 中转服务需要开放对应协议：Codex 用 OpenAI Responses API，Claude Code 用 Anthropic Messages。
+- 用户需要有自己的 relay API key。
+- 默认模型是 `gpt-5.5`，脚本会优先尝试从 `GET /v1/models` 拉取模型列表做模型选择。
+- 如果目标机器没有 Node.js/npm，脚本会在需要安装 CLI 时引导补齐 Node.js LTS：Windows 使用 `winget` 安装 `OpenJS.NodeJS.LTS`，Linux/macOS 优先使用 `nvm` 安装 LTS。
 
-## 一键运行
+## Codex 一键安装
 
 如果你 fork 了这个项目，把下面的 URL 换成自己仓库里的 raw 文件地址。
 
-### Windows PowerShell
+Windows PowerShell：
 
 ```powershell
 $url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-windows.ps1"
@@ -36,7 +65,7 @@ Invoke-RestMethod $url -OutFile $file
 powershell -NoProfile -ExecutionPolicy Bypass -File $file
 ```
 
-### Linux / macOS
+Linux/macOS：
 
 ```bash
 url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh"
@@ -45,22 +74,39 @@ curl -fsSL "$url" -o "$tmp"
 bash "$tmp"
 ```
 
-运行时脚本会提示用户输入：
+Codex 脚本会提示输入 relay API key 和 default model。安装完成后，Codex CLI、Codex Desktop、VS Code Codex 插件会读取同一个 `~/.codex/config.toml`。
 
-- relay API key
-- default model，脚本会优先尝试从 `GET /v1/models` 拉取模型列表，让用户选择；失败时再手动输入
+## Claude Code 一键安装
 
-如果本机还没有 Codex CLI，脚本会询问是否执行 `npm i -g @openai/codex`。当 npm 不存在时，脚本会先引导安装 Node.js LTS，而不是直接报错退出。
+Windows PowerShell：
 
-## 会写入什么
+```powershell
+$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-windows.ps1"
+$file = Join-Path $env:TEMP "install-claude-code-relay-windows.ps1"
+Invoke-RestMethod $url -OutFile $file
+powershell -NoProfile -ExecutionPolicy Bypass -File $file
+```
 
-脚本会备份：
+Linux/macOS：
+
+```bash
+url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-linux-macos.sh"
+tmp="${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
+curl -fsSL "$url" -o "$tmp"
+bash "$tmp"
+```
+
+Claude Code 脚本会提示输入 relay API key 和默认模型。安装完成后，Claude Code CLI 和 VS Code Claude Code 插件会读取同一个 `~/.claude/settings.json`。
+
+## Codex 会写入什么
+
+脚本会先备份：
 
 ```text
 ~/.codex/config.toml.backup-YYYYMMDD-HHMMSS
 ```
 
-然后写入一个受控配置块：
+然后写入或更新这些配置：
 
 ```toml
 # BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
@@ -84,17 +130,39 @@ experimental_bearer_token = "your-relay-api-key"
 # END CODEX RELAY INSTALLER MANAGED BLOCK
 ```
 
-Rerunning the installer overwrites the old `custom-relay` provider config instead of stacking duplicate provider tables, while keeping unrelated Codex settings. Windows sandbox will be normalized into `[windows]` as `sandbox = "elevated"`. If it was accidentally appended at the end of the file and landed under another TOML table, rerunning the installer moves it back to the right table.
+重新运行 Codex 安装脚本会覆盖旧的 `custom-relay` provider 配置，不会堆叠重复 provider 表，也会保留无关的 Codex 配置。API key 会直接写入 `experimental_bearer_token`，不会写入环境变量、shell profile、`launchctl` 或 `environment.d`。
 
-API key 会直接写入 `~/.codex/config.toml` 的 `experimental_bearer_token` 字段。
+## Claude Code 会写入什么
 
-脚本不会写入用户环境变量、shell profile、`launchctl` 或 `environment.d`。改完后建议重启 VS Code 和 Codex Desktop，让它们重新读取 `config.toml`。
+脚本会先备份：
+
+```text
+~/.claude/settings.json.backup-YYYYMMDD-HHMMSS
+```
+
+然后在 `settings.json` 的 `env` 下写入或更新这些键：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://litellm.blackwhitedeer.studio",
+    "ANTHROPIC_AUTH_TOKEN": "your-relay-api-key",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+    "ANTHROPIC_MODEL": "gpt-5.5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt-5.5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "gpt-5.5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "gpt-5.5"
+  }
+}
+```
+
+脚本会保留 `settings.json` 里其他已有配置，例如主题、权限、MCP、插件设置等。注意 `ANTHROPIC_BASE_URL` 写中转根地址，不要手动加 `/v1`。
 
 ## 常用参数
 
-Replace `/path/to/...` or `C:\path\to\...` with the full path where the script is saved on that machine.
+把 `/path/to/...` 或 `C:\path\to\...` 换成脚本在目标机器上的完整路径。
 
-Linux/macOS:
+Codex Linux/macOS：
 
 ```bash
 installer="/path/to/install-codex-relay-linux-macos.sh"
@@ -108,7 +176,7 @@ bash "$installer" --uninstall
 bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
 ```
 
-Windows:
+Codex Windows：
 
 ```powershell
 $installer = "C:\path\to\install-codex-relay-windows.ps1"
@@ -122,37 +190,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio/v1" -Model "gpt-5.5"
 ```
 
+Claude Code Linux/macOS：
+
+```bash
+installer="/path/to/install-claude-code-relay-linux-macos.sh"
+bash "$installer" --dry-run
+bash "$installer" --doctor
+bash "$installer" --test
+bash "$installer" --list-models
+bash "$installer" --restore
+bash "$installer" --uninstall
+bash "$installer" --base-url "https://litellm.blackwhitedeer.studio" --model "gpt-5.5"
+```
+
+Claude Code Windows：
+
+```powershell
+$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -ListModels
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio" -Model "gpt-5.5"
+```
+
 ## 诊断和连通性测试
 
-诊断模式不会安装配置，只检查当前环境：
+Codex 诊断会检查 Codex CLI、配置文件、API key 配置、模型列表接口是否可达。连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点。
 
-```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
-```
+Claude Code 诊断会检查 Claude Code CLI、`settings.json`、模型列表接口和 Anthropic Messages 最小请求。`--test` / `-TestConnection` 会调用 `/v1/models` 和 `/v1/messages`。
 
-```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --doctor
-```
-
-它会检查 Codex CLI、配置文件、API key 配置、模型列表接口是否可达。
-
-连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点；普通用户 key 无权读取元数据时会给出提示，但不代表请求额度不可用。
-
-```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
-```
-
-```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
-bash "$installer" --benchmark
-```
-
-模型选择器会调用 `GET /v1/models`，让用户从中转实际返回的模型列表中选择默认模型。也可以跳过模型选择：
+跳过模型选择可以这样运行：
 
 ```powershell
 $installer = "C:\path\to\install-codex-relay-windows.ps1"
@@ -166,14 +236,28 @@ bash "$installer" --no-model-picker --model "gpt-5.5"
 
 ## 验证
 
-安装后打开一个新终端：
+Codex 安装后，重新打开终端或重启 VS Code/Codex Desktop：
 
 ```bash
 codex --version
 codex
 ```
 
-VS Code Codex 插件和 Codex Desktop 如果已经打开，需要完全退出后重新启动。
+Claude Code 安装后，重新打开终端或重启 VS Code Claude Code 插件：
+
+```bash
+claude --version
+claude
+```
+
+如果使用 VS Code Remote SSH，配置必须写到远端服务器当前用户的 `~/.codex/config.toml` 或 `~/.claude/settings.json`，不是本地电脑的文件。
+
+## 服务器和手动配置
+
+- Codex 跑在服务器或 Remote SSH 里时，优先看 [codex-server-debug.md](codex-server-debug.md)。
+- Claude Code 跑在服务器或 Remote SSH 里时，优先看 [claude-code-server-debug.md](claude-code-server-debug.md)。
+- 不能运行脚本时，Codex 看 [codex-manual-config.md](codex-manual-config.md)，Claude Code 看 [claude-code-manual-config.md](claude-code-manual-config.md)。
+- 只想验证 relay API 本身时，看 [api-direct-calling-guide.md](api-direct-calling-guide.md)。
 
 ## 回滚
 
@@ -189,7 +273,7 @@ installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --restore
 ```
 
-卸载中转配置：
+卸载脚本管理的 relay 配置：
 
 ```powershell
 $installer = "C:\path\to\install-codex-relay-windows.ps1"
@@ -200,3 +284,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --uninstall
 ```
+
+Claude Code 的回滚和卸载使用同名参数，只需把脚本路径换成 `install-claude-code-relay-windows.ps1` 或 `install-claude-code-relay-linux-macos.sh`。
