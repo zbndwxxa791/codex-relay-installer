@@ -33,7 +33,7 @@ https://litellm.blackwhitedeer.studio/v1/messages
 把脚本下载或保存到本机后运行：
 
 ```powershell
-$installer = "C:\path\to\install Claude Code for Windows.ps1"
+$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -58,7 +58,7 @@ npm.cmd install -g @anthropic-ai/claude-code
 ## Linux
 
 ```bash
-installer="/path/to/install Claude Code for Linux&macOS.sh"
+installer="/path/to/install-claude-code-relay-linux-macos.sh"
 bash "$installer"
 ```
 
@@ -85,7 +85,7 @@ npm install -g @anthropic-ai/claude-code
 macOS 使用同一个 Linux/macOS 脚本：
 
 ```bash
-installer="/path/to/install Claude Code for Linux&macOS.sh"
+installer="/path/to/install-claude-code-relay-linux-macos.sh"
 bash "$installer"
 ```
 

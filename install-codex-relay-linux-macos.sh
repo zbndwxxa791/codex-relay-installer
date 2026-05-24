@@ -22,7 +22,7 @@ REQUEST_TIMEOUT_SEC=30
 
 usage() {
   cat <<'EOF'
-Usage: bash "install for Linux&macOS.sh" [options]
+Usage: bash "install-codex-relay-linux-macos.sh" [options]
 
 Configure Codex CLI, Codex Desktop, and the VS Code Codex extension to use an
 OpenAI Responses-compatible relay.

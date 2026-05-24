@@ -21,7 +21,7 @@ Responses API 兼容中转服务。
 
 ```powershell
 $url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Windows.ps1"
-$file = Join-Path $env:TEMP "install for Windows.ps1"
+$file = Join-Path $env:TEMP "install-codex-relay-windows.ps1"
 Invoke-RestMethod $url -OutFile $file
 powershell -NoProfile -ExecutionPolicy Bypass -File $file
 ```
@@ -30,7 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $file
 
 ```bash
 url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Linux%26macOS.sh"
-tmp="${TMPDIR:-/tmp}/install for Linux&macOS.sh"
+tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp"
 ```
@@ -87,7 +87,7 @@ Replace `/path/to/...` or `C:\path\to\...` with the full path where the script i
 Linux/macOS:
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --dry-run
 bash "$installer" --doctor
 bash "$installer" --test
@@ -101,7 +101,7 @@ bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model 
 Windows:
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
@@ -117,12 +117,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https:/
 诊断模式不会安装配置，只检查当前环境：
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 ```
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --doctor
 ```
 
@@ -131,13 +131,13 @@ bash "$installer" --doctor
 连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点；普通用户 key 无权读取元数据时会给出提示，但不代表请求额度不可用。
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection -BaseUrl "https://litellm.blackwhitedeer.studio/v1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
 ```
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --test --base-url "https://litellm.blackwhitedeer.studio/v1"
 bash "$installer" --benchmark
 ```
@@ -145,12 +145,12 @@ bash "$installer" --benchmark
 模型选择器会调用 `GET /v1/models`，让用户从中转实际返回的模型列表中选择默认模型。也可以跳过模型选择：
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -NoModelPicker -Model "gpt-5.5"
 ```
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --no-model-picker --model "gpt-5.5"
 ```
 
@@ -170,23 +170,23 @@ VS Code Codex 插件和 Codex Desktop 如果已经打开，需要完全退出后
 恢复最近一次备份：
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
 ```
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --restore
 ```
 
 卸载中转配置：
 
 ```powershell
-$installer = "C:\path\to\install for Windows.ps1"
+$installer = "C:\path\to\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 ```
 
 ```bash
-installer="/path/to/install for Linux&macOS.sh"
+installer="/path/to/install-codex-relay-linux-macos.sh"
 bash "$installer" --uninstall
 ```

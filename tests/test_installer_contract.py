@@ -11,7 +11,7 @@ def read_text(name: str) -> str:
 
 
 def test_windows_installer_contract():
-    text = read_text("install for Windows.ps1")
+    text = read_text("install-codex-relay-windows.ps1")
 
     assert "param(" in text
     assert f'$DefaultBaseUrl = "{DEFAULT_BASE_URL}"' in text
@@ -56,7 +56,7 @@ def test_windows_installer_contract():
 
 
 def test_unix_installer_contract():
-    text = read_text("install for Linux&macOS.sh")
+    text = read_text("install-codex-relay-linux-macos.sh")
 
     assert "set -euo pipefail" in text
     assert f'DEFAULT_BASE_URL="{DEFAULT_BASE_URL}"' in text
@@ -105,8 +105,8 @@ def test_readme_contains_public_distribution_commands():
 
     assert DEFAULT_BASE_URL in text
     assert "https://relay.example.com/v1" not in text
-    assert "install for Windows.ps1" in text
-    assert "install for Linux&macOS.sh" in text
+    assert "install-codex-relay-windows.ps1" in text
+    assert "install-codex-relay-linux-macos.sh" in text
     assert "Responses API" in text
     assert "experimental_bearer_token" in text
     assert 'model_reasoning_effort = "xhigh"' in text
@@ -129,16 +129,16 @@ def test_readme_contains_public_distribution_commands():
 def test_readme_uses_full_local_script_paths():
     text = read_text("README.md")
 
-    assert '$installer = "C:\\path\\to\\install for Windows.ps1"' in text
-    assert 'installer="/path/to/install for Linux&macOS.sh"' in text
+    assert '$installer = "C:\\path\\to\\install-codex-relay-windows.ps1"' in text
+    assert 'installer="/path/to/install-codex-relay-linux-macos.sh"' in text
     assert "C:\\Users\\wjj20" not in text
     assert "/c/Users/wjj20" not in text
-    assert '-File ".\\install for Windows.ps1"' not in text
-    assert 'bash "install for Linux&macOS.sh"' not in text
+    assert '-File ".\\install-codex-relay-windows.ps1"' not in text
+    assert 'bash "install-codex-relay-linux-macos.sh"' not in text
 
 
 def test_claude_code_windows_installer_contract():
-    text = read_text("install Claude Code for Windows.ps1")
+    text = read_text("install-claude-code-relay-windows.ps1")
 
     assert f'$DefaultBaseUrl = "{CLAUDE_DEFAULT_BASE_URL}"' in text
     assert "[switch]$DryRun" in text
@@ -164,7 +164,7 @@ def test_claude_code_windows_installer_contract():
 
 
 def test_claude_code_unix_installer_contract():
-    text = read_text("install Claude Code for Linux&macOS.sh")
+    text = read_text("install-claude-code-relay-linux-macos.sh")
 
     assert "set -euo pipefail" in text
     assert f'DEFAULT_BASE_URL="{CLAUDE_DEFAULT_BASE_URL}"' in text
@@ -191,9 +191,9 @@ def test_claude_code_unix_installer_contract():
 
 def test_claude_code_docs_contract():
     docs = [
-        read_text("Claude Code中转安装说明.md"),
-        read_text("Claude Code手动修改配置.md"),
-        read_text("Claude Code服务器部署与排障说明.md"),
+        read_text("claude-code-relay-installation.md"),
+        read_text("claude-code-manual-config.md"),
+        read_text("claude-code-server-deployment-troubleshooting.md"),
     ]
     combined = "\n".join(docs)
 

@@ -45,7 +45,7 @@ Configure Claude Code CLI and the VS Code Claude Code extension to use a
 Claude/Anthropic Messages-compatible relay.
 
 Usage:
-  bash "install Claude Code for Linux&macOS.sh" [options]
+  bash "install-claude-code-relay-linux-macos.sh" [options]
 
 Options:
   --dry-run              Show what would be written.
@@ -106,7 +106,7 @@ script_path_for_help() {
     cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P | sed "s|$|/$(basename "${BASH_SOURCE[0]}")|"
     return
   fi
-  printf '/path/to/install Claude Code for Linux&macOS.sh\n'
+  printf '/path/to/install-claude-code-relay-linux-macos.sh\n'
 }
 
 print_rerun_hints() {

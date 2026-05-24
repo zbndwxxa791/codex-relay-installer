@@ -93,9 +93,9 @@ curl -I https://registry.npmjs.org
 如果服务器完全不能访问 GitHub，可以在本地电脑下载脚本后上传到服务器：
 
 ```bash
-scp "install for Linux&macOS.sh" user@server:/tmp/
+scp "install-codex-relay-linux-macos.sh" user@server:/tmp/
 ssh user@server
-bash "/tmp/install for Linux&macOS.sh" --doctor
+bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
 ```
 
 ## 3. 修复 Node.js 和 npm
@@ -193,7 +193,7 @@ command -v codex
 
 ```bash
 url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install%20for%20Linux%26macOS.sh"
-tmp="${TMPDIR:-/tmp}/install for Linux&macOS.sh"
+tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp" --doctor
 ```
@@ -201,13 +201,13 @@ bash "$tmp" --doctor
 文件名里有 `&`，所以必须加引号。不要写成：
 
 ```bash
-bash /tmp/install for Linux&macOS.sh
+bash /tmp/install-codex-relay-linux-macos.sh
 ```
 
 正确写法是：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh"
+bash "/tmp/install-codex-relay-linux-macos.sh"
 ```
 
 先跑诊断：
@@ -308,7 +308,7 @@ export HTTPS_PROXY="..."
 那么 VS Code Codex 插件不一定能读到。请优先改成运行安装脚本或手动写 `~/.codex/config.toml`：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh" --no-model-picker --model "gpt-5.5"
+bash "/tmp/install-codex-relay-linux-macos.sh" --no-model-picker --model "gpt-5.5"
 ```
 
 写完后，不要只重载终端。建议在本机 VS Code 里执行：
@@ -346,7 +346,7 @@ codex --version
 服务器没有 bash，或者当前环境 PATH 异常。先安装 bash，或用绝对路径：
 
 ```bash
-/bin/bash "/tmp/install for Linux&macOS.sh" --doctor
+/bin/bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
 ```
 
 ### `sh: 1: Syntax error` 或 `set: Illegal option -o pipefail`
@@ -354,7 +354,7 @@ codex --version
 你用了 `sh` 执行脚本。改用 `bash`：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh"
+bash "/tmp/install-codex-relay-linux-macos.sh"
 ```
 
 ### `curl: command not found`
@@ -453,7 +453,7 @@ command -v codex
 参数写错了。查看帮助：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh" --help
+bash "/tmp/install-codex-relay-linux-macos.sh" --help
 ```
 
 ### `Permission denied`
@@ -461,14 +461,14 @@ bash "/tmp/install for Linux&macOS.sh" --help
 不要直接执行脚本文件，使用 bash 调用即可：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh"
+bash "/tmp/install-codex-relay-linux-macos.sh"
 ```
 
 如果你必须直接执行：
 
 ```bash
-chmod +x "/tmp/install for Linux&macOS.sh"
-"/tmp/install for Linux&macOS.sh"
+chmod +x "/tmp/install-codex-relay-linux-macos.sh"
+"/tmp/install-codex-relay-linux-macos.sh"
 ```
 
 ### `No such file or directory`
@@ -482,7 +482,7 @@ ls -l /tmp
 然后用完整路径加引号执行：
 
 ```bash
-bash "/tmp/install for Linux&macOS.sh" --doctor
+bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
 ```
 
 ### HTTP 401 / 403
@@ -556,7 +556,7 @@ codex --version 2>/dev/null || true
 env | grep -i proxy || true
 curl -I https://raw.githubusercontent.com 2>&1 | head -20
 curl -I https://registry.npmjs.org 2>&1 | head -20
-bash "/tmp/install for Linux&macOS.sh" --doctor 2>&1 | tail -80
+bash "/tmp/install-codex-relay-linux-macos.sh" --doctor 2>&1 | tail -80
 ```
 
-如果脚本不在 `/tmp/install for Linux&macOS.sh`，把最后一行路径换成实际保存位置。
+如果脚本不在 `/tmp/install-codex-relay-linux-macos.sh`，把最后一行路径换成实际保存位置。

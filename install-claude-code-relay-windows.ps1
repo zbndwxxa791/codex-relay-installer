@@ -56,7 +56,7 @@ function Get-ScriptPathForHelp {
     if ($MyInvocation.MyCommand.Path) {
         return $MyInvocation.MyCommand.Path
     }
-    return "C:\path\to\install Claude Code for Windows.ps1"
+    return "C:\path\to\install-claude-code-relay-windows.ps1"
 }
 
 function Write-ReRunHints {

@@ -24,7 +24,7 @@ https://litellm.blackwhitedeer.studio/v1/messages
 SSH 到服务器后运行：
 
 ```bash
-installer="/path/to/install Claude Code for Linux&macOS.sh"
+installer="/path/to/install-claude-code-relay-linux-macos.sh"
 bash "$installer"
 ```
 
@@ -55,7 +55,7 @@ npm install -g @anthropic-ai/claude-code
 在目标 Windows 用户下运行：
 
 ```powershell
-$installer = "C:\path\to\install Claude Code for Windows.ps1"
+$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -85,7 +85,7 @@ npm.cmd install -g @anthropic-ai/claude-code
 ## macOS 远程机器
 
 ```bash
-installer="/path/to/install Claude Code for Linux&macOS.sh"
+installer="/path/to/install-claude-code-relay-linux-macos.sh"
 bash "$installer"
 bash "$installer" --doctor
 bash "$installer" --test

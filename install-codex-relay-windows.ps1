@@ -49,7 +49,7 @@ function Get-ScriptPathForHelp {
     if ($MyInvocation.MyCommand.Path) {
         return $MyInvocation.MyCommand.Path
     }
-    return "C:\path\to\install for Windows.ps1"
+    return "C:\path\to\install-codex-relay-windows.ps1"
 }
 
 function Write-ReRunHints {
