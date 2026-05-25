@@ -199,8 +199,8 @@ function Write-SettingsObject {
     param([object]$Settings)
 
     $path = Get-SettingsPath
-    $home = Split-Path -Parent $path
-    New-Item -ItemType Directory -Path $home -Force | Out-Null
+    $settingsDir = Split-Path -Parent $path
+    New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
     $json = $Settings | ConvertTo-Json -Depth 20
     Set-Content -LiteralPath $path -Value ($json + [Environment]::NewLine) -Encoding UTF8
 }
@@ -259,6 +259,109 @@ function Write-HttpFailureHint {
     Write-HttpStatusHint -Status $status -FallbackMessage $ErrorRecord.Exception.Message
 }
 
+function Invoke-CurlJsonRequest {
+    param(
+        [string]$Method,
+        [string]$Url,
+        [hashtable]$Headers,
+        [string]$Body,
+        [string]$ContentType = "application/json"
+    )
+
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) {
+        throw "curl.exe was not found."
+    }
+
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    $bodyPath = $null
+    try {
+        $arguments = @(
+            "--silent",
+            "--show-error",
+            "--fail",
+            "--ssl-no-revoke",
+            "--tlsv1.2",
+            "--http1.1",
+            "--max-time",
+            [string]$RequestTimeoutSec,
+            "-X",
+            $Method.ToUpperInvariant()
+        )
+
+        foreach ($key in $Headers.Keys) {
+            $arguments += @("-H", ("{0}: {1}" -f $key, $Headers[$key]))
+        }
+        if ($ContentType) {
+            $arguments += @("-H", "Content-Type: $ContentType")
+        }
+        if ($Body) {
+            $bodyPath = [System.IO.Path]::GetTempFileName()
+            Set-Content -LiteralPath $bodyPath -Value $Body -Encoding UTF8
+            $arguments += @("--data-binary", "@$bodyPath")
+        }
+        $arguments += $Url
+
+        $output = & $curl.Source @arguments 2> $stderrPath
+        $exitCode = $LASTEXITCODE
+        $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+        $responseText = ($output -join [Environment]::NewLine)
+        if ($exitCode -ne 0) {
+            $details = if ($stderr -and $stderr.Trim()) { $stderr.Trim() } elseif ($responseText -and $responseText.Trim()) { $responseText.Trim() } else { "curl.exe exited with code $exitCode." }
+            throw "curl.exe request failed: $details"
+        }
+        if (-not $responseText.Trim()) {
+            throw "curl.exe returned an empty response."
+        }
+        return $responseText | ConvertFrom-Json
+    }
+    finally {
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+        if ($bodyPath) {
+            Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Invoke-ClaudeRelayJson {
+    param(
+        [string]$Method,
+        [string]$Url,
+        [hashtable]$Headers,
+        [string]$Body,
+        [string]$ContentType = "application/json"
+    )
+
+    $parameters = @{
+        Method = $Method
+        Uri = $Url
+        Headers = $Headers
+        TimeoutSec = $RequestTimeoutSec
+    }
+    if ($Body) {
+        $parameters.Body = $Body
+        $parameters.ContentType = $ContentType
+    }
+
+    try {
+        return Invoke-RestMethod @parameters
+    }
+    catch {
+        $primaryMessage = $_.Exception.Message
+        if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+            throw
+        }
+
+        Write-Warn "PowerShell request failed; retrying with curl.exe. $primaryMessage"
+        try {
+            return Invoke-CurlJsonRequest -Method $Method -Url $Url -Headers $Headers -Body $Body -ContentType $ContentType
+        }
+        catch {
+            throw "PowerShell request failed: $primaryMessage; curl.exe fallback failed: $($_.Exception.Message)"
+        }
+    }
+}
+
 function Get-ClaudeModels {
     param(
         [string]$BaseUrl,
@@ -269,7 +372,7 @@ function Get-ClaudeModels {
         Authorization = "Bearer $ApiKey"
     }
     $url = Join-ClaudeUrl -BaseUrl $BaseUrl -Path "models"
-    $response = Invoke-RestMethod -Method Get -Uri $url -Headers $headers -TimeoutSec $RequestTimeoutSec
+    $response = Invoke-ClaudeRelayJson -Method Get -Url $url -Headers $headers
     if (-not $response.data) {
         return @()
     }
@@ -357,7 +460,7 @@ function Test-ClaudeMessagesConnection {
         )
     } | ConvertTo-Json -Depth 6
     $url = Join-ClaudeUrl -BaseUrl $BaseUrl -Path "messages"
-    $response = Invoke-RestMethod -Method Post -Uri $url -Headers $headers -ContentType "application/json" -Body $body -TimeoutSec $RequestTimeoutSec
+    $response = Invoke-ClaudeRelayJson -Method Post -Url $url -Headers $headers -Body $body -ContentType "application/json"
     if ($response.type -ne "message" -or -not $response.content) {
         throw "Relay returned a response, but it did not look like an Anthropic Messages response."
     }

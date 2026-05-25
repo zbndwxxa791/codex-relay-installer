@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -161,6 +162,32 @@ def test_claude_code_windows_installer_contract():
     assert ".backup-" in text
     assert "experimental_bearer_token" not in text
     assert "wire_api" not in text
+
+
+def test_claude_code_windows_installer_has_curl_fallback_for_relay_requests():
+    text = read_text("install-claude-code-relay-windows.ps1")
+
+    assert "function Invoke-ClaudeRelayJson" in text
+    assert "function Invoke-CurlJsonRequest" in text
+    assert "curl.exe" in text
+    assert "--ssl-no-revoke" in text
+    assert "--tlsv1.2" in text
+    assert "--http1.1" in text
+    assert "Invoke-ClaudeRelayJson -Method Get" in text
+    assert "Invoke-ClaudeRelayJson -Method Post" in text
+
+
+def test_windows_installers_do_not_assign_reserved_powershell_variables():
+    reserved_names = "home|host|pid|pshome|pwd"
+    assignment_pattern = re.compile(rf"^\s*\$({reserved_names})\s*=", re.IGNORECASE | re.MULTILINE)
+
+    for script_name in [
+        "install-codex-relay-windows.ps1",
+        "install-claude-code-relay-windows.ps1",
+    ]:
+        text = read_text(script_name)
+        match = assignment_pattern.search(text)
+        assert match is None, f"{script_name} assigns reserved PowerShell variable ${match.group(1)}"
 
 
 def test_claude_code_unix_installer_contract():
