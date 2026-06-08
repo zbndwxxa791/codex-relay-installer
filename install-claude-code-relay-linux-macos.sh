@@ -143,7 +143,70 @@ require_json_editor() {
   if command -v node >/dev/null 2>&1; then
     return 0
   fi
-  die "node was not found. Install Node.js or Claude Code first, then rerun this script."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would use Node.js to edit settings.json."
+    return 0
+  fi
+  ensure_npm_available
+  command -v node >/dev/null 2>&1 || die "Node.js installation finished, but node is not available in this shell. Open a new terminal and rerun this installer."
+}
+
+answer_yes() {
+  local prompt="$1" answer
+  if [ -r /dev/tty ]; then
+    printf '%s [y/N]: ' "$prompt" > /dev/tty
+    IFS= read -r answer < /dev/tty
+  else
+    printf '%s [y/N]: ' "$prompt" >&2
+    IFS= read -r answer
+  fi
+
+  case "$answer" in
+    y|Y|yes|YES|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+load_nvm_if_available() {
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [ -s "$NVM_DIR/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$NVM_DIR/nvm.sh"
+  fi
+}
+
+install_node_runtime() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would install Node.js LTS with nvm if npm is missing."
+    return
+  fi
+
+  load_nvm_if_available
+  if ! command -v nvm >/dev/null 2>&1; then
+    command -v curl >/dev/null 2>&1 || die "npm was not found and curl is unavailable. Install Node.js LTS from https://nodejs.org/, then rerun this installer."
+    if ! answer_yes "npm was not found. Install nvm and Node.js LTS now?"; then
+      die "Node.js and npm are required to install Claude Code CLI. Install Node.js LTS, then rerun this installer."
+    fi
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+    load_nvm_if_available
+  fi
+
+  command -v nvm >/dev/null 2>&1 || die "nvm installation finished but nvm is not available in this shell. Open a new terminal and rerun this installer."
+  nvm install --lts
+  nvm use --lts
+}
+
+ensure_npm_available() {
+  if command -v npm >/dev/null 2>&1; then
+    return
+  fi
+
+  warn "npm was not found. Node.js LTS is required before Claude Code CLI can be installed."
+  install_node_runtime
+
+  if ! command -v npm >/dev/null 2>&1; then
+    die "Node.js LTS installation finished, but npm is not available in this shell. Open a new terminal and rerun this installer."
+  fi
 }
 
 prompt_value() {
@@ -378,8 +441,18 @@ ensure_claude_cli() {
     claude --version 2>/dev/null | sed 's/^/[claude-relay] Claude CLI version: /' || true
     return 0
   fi
-  warn "Claude CLI was not found in PATH. Install it separately, then rerun --doctor if needed."
-  warn "Typical install command: npm install -g @anthropic-ai/claude-code"
+  warn "Claude CLI was not found on PATH."
+  if ! answer_yes "Install Claude Code CLI now with npm install -g @anthropic-ai/claude-code?"; then
+    warn "Skipping Claude Code CLI install. Install it later with: npm install -g @anthropic-ai/claude-code"
+    return 0
+  fi
+
+  ensure_npm_available
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would run: npm install -g @anthropic-ai/claude-code"
+  else
+    npm install -g @anthropic-ai/claude-code
+  fi
 }
 
 invoke_doctor() {
@@ -466,6 +539,8 @@ invoke_uninstall() {
 
 invoke_install() {
   local base api_key model path
+  ensure_claude_cli
+  require_json_editor
   base="$(normalize_base_url "$(prompt_value "Claude relay base URL [$DEFAULT_BASE_URL]" "$BASE_URL")")"
   api_key="$([ "$DRY_RUN" -eq 1 ] && printf '__dry_run_api_key_not_written__' || read_api_key)"
   model="$(select_model "$base" "$api_key" "$MODEL")"
@@ -511,5 +586,4 @@ if [ "$TEST_CONNECTION" -eq 1 ]; then
   exit 0
 fi
 
-ensure_claude_cli
 invoke_install

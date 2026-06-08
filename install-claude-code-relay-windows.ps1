@@ -467,6 +467,83 @@ function Test-ClaudeMessagesConnection {
     Write-Step "Anthropic Messages test succeeded for model: $Model"
 }
 
+function Find-NpmCommand {
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($npm) {
+        return $npm
+    }
+
+    $npm = Get-Command npm -ErrorAction SilentlyContinue
+    if ($npm) {
+        return $npm
+    }
+
+    $candidateDirs = @()
+    if ($env:ProgramFiles) {
+        $candidateDirs += (Join-Path $env:ProgramFiles "nodejs")
+    }
+    ${env:ProgramFiles(x86)} | ForEach-Object {
+        if ($_) {
+            $candidateDirs += (Join-Path $_ "nodejs")
+        }
+    }
+
+    foreach ($dir in $candidateDirs) {
+        $candidate = Join-Path $dir "npm.cmd"
+        if (Test-Path -LiteralPath $candidate) {
+            if ($env:PATH -notlike "*$dir*") {
+                $env:PATH = "$dir;$env:PATH"
+            }
+            return Get-Command $candidate -ErrorAction SilentlyContinue
+        }
+    }
+
+    return $null
+}
+
+function Find-WingetCommand {
+    return (Get-Command winget -ErrorAction SilentlyContinue)
+}
+
+function Install-NodeRuntime {
+    if ($DryRun) {
+        Write-Step "Would install Node.js LTS with winget package OpenJS.NodeJS.LTS if npm is missing."
+        return
+    }
+
+    $winget = Find-WingetCommand
+    if (-not $winget) {
+        throw "npm was not found and winget is unavailable. Install Node.js LTS from https://nodejs.org/, restart PowerShell, then rerun this installer."
+    }
+
+    $answer = Read-Host "npm was not found. Install Node.js LTS now with winget (OpenJS.NodeJS.LTS)? [y/N]"
+    if ($answer -notmatch '^(y|yes)$') {
+        throw "Node.js and npm are required to install Claude Code CLI. Install Node.js LTS, restart PowerShell, then rerun this installer."
+    }
+
+    & $winget.Source install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw "winget failed to install Node.js LTS. Install Node.js LTS from https://nodejs.org/, restart PowerShell, then rerun this installer."
+    }
+}
+
+function Ensure-NpmAvailable {
+    $npm = Find-NpmCommand
+    if ($npm) {
+        return $npm
+    }
+
+    Write-Warn "npm was not found. Node.js LTS is required before Claude Code CLI can be installed."
+    Install-NodeRuntime
+
+    $npm = Find-NpmCommand
+    if ($npm) {
+        return $npm
+    }
+
+    throw "Node.js LTS installation finished, but npm is not available in this PowerShell session. Open a new PowerShell window and rerun this installer."
+}
+
 function Ensure-ClaudeCli {
     if ($SkipClaudeCheck) {
         return
@@ -487,8 +564,24 @@ function Ensure-ClaudeCli {
         return
     }
 
-    Write-Warn "Claude CLI was not found in PATH. Install it separately, then rerun Doctor if needed."
-    Write-Warn "Typical install command: npm.cmd install -g @anthropic-ai/claude-code"
+    Write-Warn "Claude CLI was not found on PATH."
+    $answer = Read-Host "Install Claude Code CLI now with npm.cmd install -g @anthropic-ai/claude-code? [y/N]"
+    if ($answer -notmatch '^(y|yes)$') {
+        Write-Warn "Skipping Claude Code CLI install. Install it later with: npm.cmd install -g @anthropic-ai/claude-code"
+        return
+    }
+
+    $npm = Ensure-NpmAvailable
+
+    if ($DryRun) {
+        Write-Step "Would run: npm.cmd install -g @anthropic-ai/claude-code"
+        return
+    }
+
+    & $npm.Source install -g "@anthropic-ai/claude-code"
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm failed to install Claude Code CLI."
+    }
 }
 
 function Invoke-Doctor {
@@ -602,6 +695,8 @@ function Invoke-Uninstall {
 }
 
 function Invoke-Install {
+    Ensure-ClaudeCli
+
     $resolvedBaseUrl = Normalize-ClaudeBaseUrl (Read-RequiredValue -Prompt "Claude relay base URL [$DefaultBaseUrl]" -CurrentValue $BaseUrl)
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
     $resolvedModel = Select-ClaudeModel -BaseUrl $resolvedBaseUrl -ApiKey $apiKey -RequestedModel $Model
@@ -666,5 +761,4 @@ if ($TestConnection) {
     return
 }
 
-Ensure-ClaudeCli
 Invoke-Install

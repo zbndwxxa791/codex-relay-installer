@@ -51,6 +51,8 @@ https://litellm.blackwhitedeer.studio/v1/messages
 - 用户需要有自己的 relay API key。
 - 默认模型是 `gpt-5.5`，脚本会优先尝试从 `GET /v1/models` 拉取模型列表做模型选择。
 - 如果目标机器没有 Node.js/npm，脚本会在需要安装 CLI 时引导补齐 Node.js LTS：Windows 使用 `winget` 安装 `OpenJS.NodeJS.LTS`，Linux/macOS 优先使用 `nvm` 安装 LTS。
+- Codex 安装脚本会先引导安装 Git、Node.js/npm、Codex CLI；Windows 会继续尝试通过 Microsoft Store 安装 Codex Desktop，macOS 会通过 `codex app` 引导桌面端。
+- Claude Code 安装脚本会先引导安装 Node.js/npm 和 Claude Code CLI，再写入 relay 配置。
 
 ## Codex 一键安装
 
@@ -59,19 +61,14 @@ https://litellm.blackwhitedeer.studio/v1/messages
 Windows PowerShell：
 
 ```powershell
-$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-windows.ps1"
-$file = Join-Path $env:TEMP "install-codex-relay-windows.ps1"
-Invoke-RestMethod $url -OutFile $file
-powershell -NoProfile -ExecutionPolicy Bypass -File $file
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-windows.ps1' -OutFile ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-codex-relay-windows.ps1')); powershell -NoProfile -ExecutionPolicy Bypass -File ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-codex-relay-windows.ps1'))"
 ```
 
 Linux/macOS：
 
 ```bash
-url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh"
-tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
-curl -fsSL "$url" -o "$tmp"
-bash "$tmp"
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh" -o "${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
+bash "${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
 ```
 
 Codex 脚本会提示输入 relay API key 和 default model。安装完成后，Codex CLI、Codex Desktop、VS Code Codex 插件会读取同一个 `~/.codex/config.toml`。
@@ -81,19 +78,14 @@ Codex 脚本会提示输入 relay API key 和 default model。安装完成后，
 Windows PowerShell：
 
 ```powershell
-$url = "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-windows.ps1"
-$file = Join-Path $env:TEMP "install-claude-code-relay-windows.ps1"
-Invoke-RestMethod $url -OutFile $file
-powershell -NoProfile -ExecutionPolicy Bypass -File $file
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-windows.ps1' -OutFile ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-claude-code-relay-windows.ps1')); powershell -NoProfile -ExecutionPolicy Bypass -File ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-claude-code-relay-windows.ps1'))"
 ```
 
 Linux/macOS：
 
 ```bash
-url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-linux-macos.sh"
-tmp="${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
-curl -fsSL "$url" -o "$tmp"
-bash "$tmp"
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-linux-macos.sh" -o "${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
+bash "${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
 ```
 
 Claude Code 脚本会提示输入 relay API key 和默认模型。安装完成后，Claude Code CLI 和 VS Code Claude Code 插件会读取同一个 `~/.claude/settings.json`。

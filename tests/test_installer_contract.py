@@ -39,6 +39,10 @@ def test_windows_installer_contract():
     assert "Invoke-WebRequest" in text
     assert "Find-NpmCommand" in text
     assert "Ensure-NpmAvailable" in text
+    assert "Ensure-GitAvailable" in text
+    assert "Git.Git" in text
+    assert "Ensure-CodexDesktop" in text
+    assert "winget install Codex -s msstore" in text
     assert "OpenJS.NodeJS.LTS" in text
     assert "winget" in text
     assert "Measure-RelayRequest" in text
@@ -84,6 +88,9 @@ def test_unix_installer_contract():
     assert "curl" in text
     assert "load_nvm_if_available" in text
     assert "ensure_npm_available" in text
+    assert "ensure_git_available" in text
+    assert "ensure_codex_desktop" in text
+    assert "codex app" in text
     assert "nvm install --lts" in text
     assert "NodeSource" in text
     assert "timed_curl_json" in text
@@ -118,6 +125,10 @@ def test_readme_contains_public_distribution_commands():
     assert "npm" in text
     assert "winget" in text
     assert "nvm" in text
+    assert "Git" in text
+    assert "Codex Desktop" in text
+    assert "Claude Code CLI" in text
+    assert "$url =" not in text
     assert "--doctor" in text
     assert "--test" in text
     assert "--benchmark" in text
@@ -162,6 +173,10 @@ def test_claude_code_windows_installer_contract():
     assert ".backup-" in text
     assert "experimental_bearer_token" not in text
     assert "wire_api" not in text
+    assert "Find-NpmCommand" in text
+    assert "Ensure-NpmAvailable" in text
+    assert "OpenJS.NodeJS.LTS" in text
+    assert "npm.cmd install -g @anthropic-ai/claude-code" in text
 
 
 def test_claude_code_windows_installer_has_curl_fallback_for_relay_requests():
@@ -214,6 +229,9 @@ def test_claude_code_unix_installer_contract():
     assert ".backup-" in text
     assert "experimental_bearer_token" not in text
     assert "wire_api" not in text
+    assert "ensure_npm_available" in text
+    assert "nvm install --lts" in text
+    assert "npm install -g @anthropic-ai/claude-code" in text
 
 
 def test_claude_code_docs_contract():

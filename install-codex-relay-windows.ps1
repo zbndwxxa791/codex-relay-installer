@@ -866,13 +866,45 @@ function Find-NpmCommand {
     return $null
 }
 
+function Find-WingetCommand {
+    return (Get-Command winget -ErrorAction SilentlyContinue)
+}
+
+function Ensure-GitAvailable {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($git) {
+        Write-Step "Found Git: $($git.Source)"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Step "Would run: winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements"
+        return
+    }
+
+    $winget = Find-WingetCommand
+    if (-not $winget) {
+        throw "Git was not found and winget is unavailable. Install Git from https://git-scm.com/download/win, restart PowerShell, then rerun this installer."
+    }
+
+    $answer = Read-Host "Git was not found. Install Git now with winget (Git.Git)? [y/N]"
+    if ($answer -notmatch '^(y|yes)$') {
+        throw "Git is required before Codex is run. Install Git, restart PowerShell, then rerun this installer."
+    }
+
+    & $winget.Source install -e --id Git.Git --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw "winget failed to install Git. Install Git from https://git-scm.com/download/win, restart PowerShell, then rerun this installer."
+    }
+}
+
 function Install-NodeRuntime {
     if ($DryRun) {
         Write-Step "Would install Node.js LTS with winget package OpenJS.NodeJS.LTS if npm is missing."
         return
     }
 
-    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    $winget = Find-WingetCommand
     if (-not $winget) {
         throw "npm was not found and winget is unavailable. Install Node.js LTS from https://nodejs.org/, restart PowerShell, then rerun this installer."
     }
@@ -931,16 +963,58 @@ function Ensure-CodexCli {
     }
 
     & $npm.Source i -g "@openai/codex"
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm failed to install Codex CLI."
+    }
+}
+
+function Ensure-CodexDesktop {
+    if ($SkipCodexCheck) {
+        return
+    }
+
+    $app = Get-StartApps -Name "Codex" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($app) {
+        Write-Step "Found Codex Desktop app: $($app.Name)"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Step "Would run: winget install Codex -s msstore --accept-package-agreements --accept-source-agreements"
+        return
+    }
+
+    $winget = Find-WingetCommand
+    if (-not $winget) {
+        Write-Warn "winget is unavailable, so Codex Desktop cannot be installed automatically. Install it from Microsoft Store, then rerun Doctor."
+        return
+    }
+
+    $answer = Read-Host "Codex Desktop app was not found. Install it now from Microsoft Store with winget? [y/N]"
+    if ($answer -notmatch '^(y|yes)$') {
+        Write-Warn "Skipping Codex Desktop install. Install it later with: winget install Codex -s msstore"
+        return
+    }
+
+    & $winget.Source install "Codex" -s msstore --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "winget could not install Codex Desktop from Microsoft Store. Try manually: winget install Codex -s msstore"
+    }
 }
 
 function Install-RelayConfig {
     Assert-ProviderId $ProviderId
 
+    Ensure-GitAvailable
+    if (-not $SkipCodexCheck) {
+        $null = Ensure-NpmAvailable
+    }
+    Ensure-CodexCli
+    Ensure-CodexDesktop
+
     $resolvedBaseUrl = Resolve-BaseUrl $script:BaseUrl
     $apiKey = if ($DryRun) { "__dry_run_api_key_not_written__" } else { Read-ApiKey }
     $resolvedModel = Select-Model -BaseUrl $resolvedBaseUrl -ApiKey $apiKey -RequestedModel $script:Model
-
-    Ensure-CodexCli
 
     $codexHome = Get-CodexHome
     $configPath = Get-ConfigPath

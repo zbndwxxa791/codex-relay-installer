@@ -830,6 +830,41 @@ answer_yes() {
   esac
 }
 
+ensure_git_available() {
+  if command -v git >/dev/null 2>&1; then
+    log "Found Git: $(command -v git)"
+    return
+  fi
+
+  warn "Git was not found on PATH."
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "Would install Git with the detected package manager before running Codex."
+    return
+  fi
+
+  if ! answer_yes "Install Git now with the detected package manager?"; then
+    die "Git is required before Codex is run. Install Git, then rerun this installer."
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    brew install git
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y git
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y git
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y git
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -Sy --noconfirm git
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper install -y git
+  else
+    die "No supported package manager found for Git. Install Git manually, then rerun this installer."
+  fi
+
+  command -v git >/dev/null 2>&1 || die "Git installation finished, but git is not available in this shell. Open a new terminal and rerun this installer."
+}
+
 ensure_codex_cli() {
   [ "$SKIP_CODEX_CHECK" -eq 1 ] && return
 
@@ -850,6 +885,31 @@ ensure_codex_cli() {
   else
     npm i -g @openai/codex
   fi
+}
+
+ensure_codex_desktop() {
+  [ "$SKIP_CODEX_CHECK" -eq 1 ] && return
+
+  os_name="$(uname -s 2>/dev/null || true)"
+  case "$os_name" in
+    Darwin)
+      if [ "$DRY_RUN" -eq 1 ]; then
+        log "Would run: codex app"
+        return
+      fi
+      if ! answer_yes "Install or open Codex Desktop now with 'codex app'?"; then
+        warn "Skipping Codex Desktop install. Install it later with: codex app"
+        return
+      fi
+      codex app || warn "Could not install or open Codex Desktop with 'codex app'."
+      ;;
+    Linux)
+      warn "Codex Desktop is not officially available for Linux in this installer. Continuing with Codex CLI and config."
+      ;;
+    *)
+      warn "Unknown OS '$os_name'; skipping Codex Desktop install."
+      ;;
+  esac
 }
 
 load_nvm_if_available() {
@@ -986,6 +1046,13 @@ invoke_test_connection() {
 install_relay_config() {
   assert_provider_id
 
+  ensure_git_available
+  if [ "$SKIP_CODEX_CHECK" -eq 0 ]; then
+    ensure_npm_available
+  fi
+  ensure_codex_cli
+  ensure_codex_desktop
+
   BASE_URL="$(normalize_base_url "$BASE_URL")"
   if [ "$DRY_RUN" -eq 1 ]; then
     api_key="__dry_run_api_key_not_written__"
@@ -994,8 +1061,6 @@ install_relay_config() {
   fi
   MODEL="$(select_model "$BASE_URL" "$api_key" "$MODEL")"
   project_path="$(pwd -P)"
-
-  ensure_codex_cli
 
   cfg="$(config_path)"
   mkdir_arg="$(dirname "$cfg")"
