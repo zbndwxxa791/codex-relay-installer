@@ -546,7 +546,7 @@ function Read-CodexRelay {
         ProviderId = $configuredProviderId
         BaseUrl = Get-CodexProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "base_url"
         ApiKey = Get-CodexProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "experimental_bearer_token"
-        HasManagedBlock = ([regex]::Match($content, "(?ms)^\s*\Q$CodexBeginMarker\E[\s\S]*?\Q$CodexEndMarker\E").Success)
+        HasManagedBlock = ([regex]::Match($content, "(?ms)^\s*$([regex]::Escape($CodexBeginMarker))[\s\S]*?$([regex]::Escape($CodexEndMarker))").Success)
     }
 }
 
