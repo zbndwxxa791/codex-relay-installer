@@ -672,7 +672,7 @@ function Write-CodexModelCache {
     }
 
     $seen = @{}
-    $cacheEntries = New-Object System.Collections.Generic.List[object]
+    $cacheEntries = New-Object System.Collections.ArrayList
     foreach ($model in $Models) {
         $modelId = [string]$model
         if (-not $modelId -or $seen.ContainsKey($modelId)) {
@@ -681,17 +681,19 @@ function Write-CodexModelCache {
         $seen[$modelId] = $true
 
         if ($existingByModel.ContainsKey($modelId)) {
-            $cacheEntries.Add([pscustomobject]$existingByModel[$modelId])
+            [void]$cacheEntries.Add([pscustomobject]$existingByModel[$modelId])
             continue
         }
 
-        $cacheEntries.Add((New-CodexCacheEntry -Model $modelId -Template $template))
+        [void]$cacheEntries.Add((New-CodexCacheEntry -Model $modelId -Template $template))
     }
 
+    $cacheEtag = if ($cache -and $cache.etag) { $cache.etag } else { $null }
+    $cacheClientVersion = if ($cache -and $cache.client_version) { $cache.client_version } else { $null }
     $payload = [ordered]@{
         fetched_at = (Get-Date).ToUniversalTime().ToString("o")
-        etag = if ($cache -and $cache.etag) { $cache.etag } else { $null }
-        client_version = if ($cache -and $cache.client_version) { $cache.client_version } else { $null }
+        etag = $cacheEtag
+        client_version = $cacheClientVersion
         models = @($cacheEntries)
     }
 

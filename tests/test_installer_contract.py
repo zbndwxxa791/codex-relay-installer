@@ -1,5 +1,10 @@
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -324,12 +329,48 @@ def test_windows_model_updater_contract():
     assert "[Math]::Min($Models.Count, 50)" not in text
     assert "Sort-Object -Unique" not in text
     assert "$seen.ContainsKey($id)" in text
+    assert "System.Collections.ArrayList" in text
+    assert "System.Collections.Generic.List[object]" not in text
     assert '$entry.Contains("id")' in text
     assert '$entry.Contains("visibility")' in text
     assert '$entry.Contains("supported_in_api")' in text
     assert '$entry.ContainsKey(' not in text
     assert r"\Q" not in text
     assert r"\E" not in text
+
+
+def test_windows_model_updater_writes_codex_cache(tmp_path):
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is not available")
+
+    script_path = str(ROOT / "update-relay-model-windows.ps1").replace("'", "''")
+    codex_home = str(tmp_path).replace("'", "''")
+    command = f"""
+$ErrorActionPreference = 'Stop'
+$script = Get-Content -Raw -LiteralPath '{script_path}'
+$marker = '$resolvedTool = Resolve-ToolSelection'
+$idx = $script.IndexOf($marker)
+if ($idx -lt 0) {{ throw 'entry marker not found' }}
+Invoke-Expression $script.Substring(0, $idx)
+$env:CODEX_HOME = '{codex_home}'
+Write-CodexModelCache -Models @('gpt-5.5', 'claude-sonnet-test') -Tag 'test'
+Get-Content -Raw -LiteralPath (Join-Path $env:CODEX_HOME 'models_cache.json')
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout[result.stdout.index("{") :])
+    assert [model["slug"] for model in payload["models"]] == [
+        "gpt-5.5",
+        "claude-sonnet-test",
+    ]
 
 
 def test_unix_model_updater_contract():
