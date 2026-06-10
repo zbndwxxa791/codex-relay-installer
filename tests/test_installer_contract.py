@@ -318,6 +318,10 @@ def test_windows_model_updater_contract():
     assert "[Math]::Min($Models.Count, 50)" not in text
     assert "Sort-Object -Unique" not in text
     assert "$seen.ContainsKey($id)" in text
+    assert '$entry.Contains("id")' in text
+    assert '$entry.Contains("visibility")' in text
+    assert '$entry.Contains("supported_in_api")' in text
+    assert '$entry.ContainsKey(' not in text
     assert r"\Q" not in text
     assert r"\E" not in text
 

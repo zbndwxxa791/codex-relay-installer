@@ -578,13 +578,13 @@ function New-CodexCacheEntry {
     $entry = if ($Template) { Copy-ShallowObject -InputObject $Template } else { [ordered]@{} }
     $entry["slug"] = $Model
     $entry["display_name"] = $Model
-    if (-not $entry.ContainsKey("id")) {
+    if (-not $entry.Contains("id")) {
         $entry["id"] = ""
     }
-    if (-not $entry.ContainsKey("visibility") -or -not $entry["visibility"]) {
+    if (-not $entry.Contains("visibility") -or -not $entry["visibility"]) {
         $entry["visibility"] = "list"
     }
-    if (-not $entry.ContainsKey("supported_in_api")) {
+    if (-not $entry.Contains("supported_in_api")) {
         $entry["supported_in_api"] = $true
     }
     return [pscustomobject]$entry
