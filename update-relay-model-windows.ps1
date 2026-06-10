@@ -494,6 +494,52 @@ function Get-CodexProviderBlockValue {
     return Get-TomlValue -Content $blockMatch.Groups[1].Value -Key $Key
 }
 
+function Get-EnvironmentVariableValue {
+    param([string]$Name)
+
+    if (-not $Name) { return $null }
+    $trimmed = $Name.Trim()
+    if (-not $trimmed) { return $null }
+
+    foreach ($target in @("Process", "User", "Machine")) {
+        $value = [Environment]::GetEnvironmentVariable($trimmed, $target)
+        if ($value) { return $value }
+    }
+    return $null
+}
+
+function Resolve-CodexProviderApiKey {
+    param([string]$Content, [string]$ProviderId)
+
+    $directApiKey = Get-CodexProviderBlockValue -Content $Content -ProviderId $ProviderId -Key "experimental_bearer_token"
+    if ($directApiKey) {
+        return [pscustomobject]@{
+            ApiKey = $directApiKey
+            Source = "experimental_bearer_token"
+            ProviderId = $ProviderId
+            EnvKey = $null
+        }
+    }
+
+    $envKey = Get-CodexProviderBlockValue -Content $Content -ProviderId $ProviderId -Key "env_key"
+    $envApiKey = Get-EnvironmentVariableValue -Name $envKey
+    if ($envApiKey) {
+        return [pscustomobject]@{
+            ApiKey = $envApiKey
+            Source = "env_key"
+            ProviderId = $ProviderId
+            EnvKey = $envKey
+        }
+    }
+
+    return [pscustomobject]@{
+        ApiKey = $null
+        Source = $null
+        ProviderId = $ProviderId
+        EnvKey = $envKey
+    }
+}
+
 function Copy-ShallowObject {
     param([object]$InputObject)
 
@@ -530,6 +576,7 @@ function Read-CodexRelay {
         return [pscustomobject]@{
             ConfigPath = $configPath; Exists = $false; Content = $null
             Model = $null; ProviderId = $null; BaseUrl = $null; ApiKey = $null
+            ApiKeySource = $null; ApiKeySourceProviderId = $null; ApiKeyEnvKey = $null
             HasManagedBlock = $false
         }
     }
@@ -537,6 +584,13 @@ function Read-CodexRelay {
     $content = Get-Content -LiteralPath $configPath -Raw
     $configuredProviderId = Get-TomlValue -Content $content -Key "model_provider"
     if (-not $configuredProviderId) { $configuredProviderId = $CodexDefaultProviderId }
+    $apiKeyInfo = Resolve-CodexProviderApiKey -Content $content -ProviderId $configuredProviderId
+    if (-not $apiKeyInfo.ApiKey -and $configuredProviderId -ne $CodexDefaultProviderId) {
+        $fallbackApiKeyInfo = Resolve-CodexProviderApiKey -Content $content -ProviderId $CodexDefaultProviderId
+        if ($fallbackApiKeyInfo.ApiKey) {
+            $apiKeyInfo = $fallbackApiKeyInfo
+        }
+    }
 
     return [pscustomobject]@{
         ConfigPath = $configPath
@@ -545,7 +599,10 @@ function Read-CodexRelay {
         Model = Get-TomlValue -Content $content -Key "model"
         ProviderId = $configuredProviderId
         BaseUrl = Get-CodexProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "base_url"
-        ApiKey = Get-CodexProviderBlockValue -Content $content -ProviderId $configuredProviderId -Key "experimental_bearer_token"
+        ApiKey = $apiKeyInfo.ApiKey
+        ApiKeySource = $apiKeyInfo.Source
+        ApiKeySourceProviderId = $apiKeyInfo.ProviderId
+        ApiKeyEnvKey = $apiKeyInfo.EnvKey
         HasManagedBlock = ([regex]::Match($content, "(?ms)^\s*$([regex]::Escape($CodexBeginMarker))[\s\S]*?$([regex]::Escape($CodexEndMarker))").Success)
     }
 }
@@ -668,6 +725,50 @@ function Update-CodexModelLine {
     return "model = `"$escapedModel`"`r`n$Content"
 }
 
+function Update-CodexProviderApiKey {
+    param([string]$Content, [string]$ProviderId, [string]$BaseUrl, [string]$ApiKey)
+
+    $escapedApiKey = Escape-TomlString $ApiKey
+    $tokenLine = "experimental_bearer_token = `"$escapedApiKey`""
+    $escapedProviderId = [regex]::Escape($ProviderId)
+    $providerPattern = "\[model_providers\.(?:`"$escapedProviderId`"|$escapedProviderId)\]"
+    $blockMatch = [regex]::Match($Content, "(?ms)^\s*$providerPattern\s*`$([\s\S]*?)(?=^\s*\[|\z)")
+
+    if ($blockMatch.Success) {
+        $block = $blockMatch.Value
+        $updatedBlock = [regex]::Replace($block, '(?m)^(\s*experimental_bearer_token\s*=\s*)"[^"]*"', "`$1`"$escapedApiKey`"")
+
+        if ($updatedBlock -eq $block) {
+            foreach ($anchor in @("wire_api", "base_url", "name")) {
+                $anchorPattern = "(?m)^(\s*$anchor\s*=\s*`"[^`"]*`"\s*)$"
+                $candidate = [regex]::Replace($block, $anchorPattern, "`$1`r`n$tokenLine")
+                if ($candidate -ne $block) {
+                    $updatedBlock = $candidate
+                    break
+                }
+            }
+        }
+
+        if ($updatedBlock -eq $block) {
+            $updatedBlock = $block.TrimEnd() + "`r`n$tokenLine`r`n"
+        }
+
+        return $Content.Substring(0, $blockMatch.Index) + $updatedBlock + $Content.Substring($blockMatch.Index + $blockMatch.Length)
+    }
+
+    $escapedProviderName = Escape-TomlString $ProviderId
+    $escapedBaseUrl = Escape-TomlString $BaseUrl
+    $newBlock = @"
+[model_providers."$escapedProviderName"]
+name = "$escapedProviderName"
+base_url = "$escapedBaseUrl"
+wire_api = "responses"
+$tokenLine
+"@
+    if (-not $Content) { return $newBlock.TrimEnd() }
+    return $Content.TrimEnd() + "`r`n`r`n" + $newBlock.TrimEnd()
+}
+
 function Backup-File {
     param([string]$Path)
     $backup = "$Path.backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
@@ -697,15 +798,23 @@ function Invoke-CodexUpdate {
     $resolvedBaseUrl = if ($BaseUrl) { Normalize-CodexBaseUrl $BaseUrl } else { $relay.BaseUrl }
     if (-not $resolvedBaseUrl) { $resolvedBaseUrl = $CodexDefaultBaseUrl }
 
-    $resolvedApiKey = if ($ApiKey) {
-        $ApiKey.Trim()
+    $shouldPersistApiKey = $false
+    if ($ApiKey) {
+        $resolvedApiKey = $ApiKey.Trim()
     }
     elseif ($relay.ApiKey) {
-        $relay.ApiKey
+        $resolvedApiKey = $relay.ApiKey
+        if ($relay.ApiKeySource -eq "env_key") {
+            Write-Step -Tag $tag "Using relay API key from environment variable: $($relay.ApiKeyEnvKey)"
+        }
+        elseif ($relay.ApiKeySourceProviderId -and $relay.ApiKeySourceProviderId -ne $resolvedProviderId) {
+            Write-Step -Tag $tag "Using relay API key from provider: $($relay.ApiKeySourceProviderId)"
+        }
     }
     else {
         Write-Warn -Tag $tag "No relay API key found in $($relay.ConfigPath). You will be prompted."
-        Read-ApiKeyInteractive -Tag $tag
+        $resolvedApiKey = Read-ApiKeyInteractive -Tag $tag
+        $shouldPersistApiKey = $true
     }
 
     Write-Step -Tag $tag "Config: $($relay.ConfigPath)"
@@ -745,22 +854,39 @@ function Invoke-CodexUpdate {
         $resolvedModel = Select-Model -Models $models -CurrentModel $relay.Model -Tag $tag
     }
 
-    if ($resolvedModel -eq $relay.Model) {
+    $modelChanged = ($resolvedModel -ne $relay.Model)
+    if (-not $modelChanged -and -not $shouldPersistApiKey) {
         Write-Step -Tag $tag "Selected model matches the current model ($resolvedModel). Nothing to update."
         return
     }
 
-    $updatedContent = Update-CodexModelLine -Content $relay.Content -Model $resolvedModel
+    $updatedContent = $relay.Content
+    if ($modelChanged) {
+        $updatedContent = Update-CodexModelLine -Content $updatedContent -Model $resolvedModel
+    }
+    if ($shouldPersistApiKey) {
+        $updatedContent = Update-CodexProviderApiKey -Content $updatedContent -ProviderId $resolvedProviderId -BaseUrl $resolvedBaseUrl -ApiKey $resolvedApiKey
+    }
 
     if ($DryRun) {
-        Write-Step -Tag $tag "Dry run: would update model -> $resolvedModel in $($relay.ConfigPath)"
+        if ($modelChanged) {
+            Write-Step -Tag $tag "Dry run: would update model -> $resolvedModel in $($relay.ConfigPath)"
+        }
+        if ($shouldPersistApiKey) {
+            Write-Step -Tag $tag "Dry run: would save relay API key in provider '$resolvedProviderId'"
+        }
         return
     }
 
     $backup = Backup-File -Path $relay.ConfigPath
     Write-Step -Tag $tag "Backup written: $backup"
     Save-TextFile -Path $relay.ConfigPath -Content $updatedContent
-    Write-Step -Tag $tag "Model updated to: $resolvedModel"
+    if ($modelChanged) {
+        Write-Step -Tag $tag "Model updated to: $resolvedModel"
+    }
+    if ($shouldPersistApiKey) {
+        Write-Step -Tag $tag "Relay API key saved in provider: $resolvedProviderId"
+    }
 }
 
 #------------------------------------------------------------------

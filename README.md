@@ -214,7 +214,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https:/
 
 中转平台后续可能加新模型。装好之后想拉最新模型列表、换默认模型，不需要重跑完整安装脚本，运行模型更新脚本就行。Codex 会更新默认 `model` 字段；Claude Code 会确保开启 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`，更新 `ANTHROPIC_MODEL`，并从网关模型列表里自动挑出 `sonnet` / `opus` / `haiku` 对应模型写入 `ANTHROPIC_DEFAULT_*_MODEL`。其他配置原样保留，并先写一份带时间戳的备份。
 
-脚本会自动从已有配置里读出 base URL 和 API key，无需重新粘 key。Windows 日常直接用下面三条 PowerShell 7（`pwsh`）指令：Claude Code 一条、Codex 一条、两个一起更新一条。即使用 Windows PowerShell 5.1 的 `powershell` 启动，脚本也会自动转交给 `pwsh`，避免 5.1 解析较大的 Claude `settings.json` 时失败。
+脚本会自动从已有配置里读出 base URL 和 API key，无需重新粘 key。Codex 会优先读当前 provider 的 `experimental_bearer_token`，也兼容 provider 里的 `env_key` 环境变量；如果配置里确实没有 key，脚本会提示粘贴一次，并把 key 写回当前 provider，后续再更新就不用重复输入。Windows 日常直接用下面三条 PowerShell 7（`pwsh`）指令：Claude Code 一条、Codex 一条、两个一起更新一条。即使用 Windows PowerShell 5.1 的 `powershell` 启动，脚本也会自动转交给 `pwsh`，避免 5.1 解析较大的 Claude `settings.json` 时失败。
 
 ### PowerShell 一条指令更新
 

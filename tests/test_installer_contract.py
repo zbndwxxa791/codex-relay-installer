@@ -314,6 +314,12 @@ def test_windows_model_updater_contract():
     assert "ANTHROPIC_DEFAULT_OPUS_MODEL = Select-ClaudeFamilyModel" in text
     assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = Select-ClaudeFamilyModel" in text
     assert "experimental_bearer_token" in text
+    assert 'Resolve-CodexProviderApiKey' in text
+    assert 'Get-EnvironmentVariableValue' in text
+    assert 'Key "env_key"' in text
+    assert 'Update-CodexProviderApiKey' in text
+    assert '$shouldPersistApiKey = $true' in text
+    assert 'Relay API key saved in provider' in text
     assert "Showing first" not in text
     assert "[Math]::Min($Models.Count, 50)" not in text
     assert "Sort-Object -Unique" not in text
