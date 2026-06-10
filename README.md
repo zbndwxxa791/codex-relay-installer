@@ -223,19 +223,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https:/
 只更新 Claude Code CLI / VS Code 插件：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command "$p=[IO.Path]::Combine([IO.Path]::GetTempPath(),'update-relay-model-windows.ps1'); Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1' -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool claude"
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool claude'
 ```
 
 只更新 Codex CLI / Codex Desktop / VS Code 插件：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command "$p=[IO.Path]::Combine([IO.Path]::GetTempPath(),'update-relay-model-windows.ps1'); Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1' -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex"
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex'
 ```
 
 Claude Code 和 Codex 一起更新：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command "$p=[IO.Path]::Combine([IO.Path]::GetTempPath(),'update-relay-model-windows.ps1'); Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1' -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool both"
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool both'
 ```
 
 Linux/macOS：
