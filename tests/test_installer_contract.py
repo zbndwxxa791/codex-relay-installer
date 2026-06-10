@@ -146,17 +146,21 @@ def test_readme_contains_public_distribution_commands():
     assert "PowerShell 一条指令更新" in text
     assert "PowerShell 7" in text
     assert "自动转交给 `pwsh`" in text
-    assert "只更新 Claude Code CLI / VS Code 插件" in text
-    assert "只更新 Codex CLI / Codex Desktop / VS Code 插件" in text
-    assert "Claude Code 和 Codex 一起更新" in text
+    assert "ccswitch" in text
+    assert "`refresh` 只刷新客户端可读的完整模型缓存" in text
+    assert "`list` 打印完整模型列表" in text
+    assert "`switch` 才切换默认模型" in text
+    assert "只刷新 Claude Code CLI / VS Code 插件模型列表" in text
+    assert "只刷新 Codex CLI / Codex Desktop / VS Code 插件模型列表" in text
+    assert "Claude Code 和 Codex 一起刷新模型列表" in text
     assert "pwsh -NoProfile -ExecutionPolicy Bypass -Command" in text
-    assert "-File $p -Tool claude" in text
-    assert "-File $p -Tool codex" in text
-    assert "-File $p -Tool both" in text
-    assert "全部模型列出来" in text
+    assert "-File $p -Tool claude -Mode refresh" in text
+    assert "-File $p -Tool codex -Mode refresh" in text
+    assert "-File $p -Tool both -Mode refresh" in text
+    assert "-File $p -Tool codex -Mode switch" in text
     assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1" in text
-    assert "自动挑出 `sonnet` / `opus` / `haiku`" in text
-    assert "看到完整列表并切换" in text
+    assert "~/.claude/cache/gateway-models.json" in text
+    assert "~/.codex/models_cache.json" in text
 
 
 def test_readme_uses_full_local_script_paths():
@@ -295,6 +299,9 @@ def test_windows_model_updater_contract():
     text = read_text("update-relay-model-windows.ps1")
 
     assert '[ValidateSet("auto", "codex", "claude", "both")]' in text
+    assert '[ValidateSet("refresh", "list", "switch")]' in text
+    assert '[string]$Mode = "refresh"' in text
+    assert '$RunMode = Resolve-RunMode' in text
     assert '$PSVersionTable.PSVersion.Major -lt 6' in text
     assert 'Get-Command "pwsh"' in text
     assert "$MyInvocation.BoundParameters.GetEnumerator()" in text
@@ -325,6 +332,9 @@ def test_windows_model_updater_contract():
     assert 'Update-CodexProviderApiKey' in text
     assert '$shouldPersistApiKey = $true' in text
     assert 'Relay API key saved in provider' in text
+    assert '$RunMode -eq "refresh"' in text
+    assert '$RunMode -eq "list"' in text
+    assert 'Model list refreshed. Current default model unchanged' in text
     assert "Showing first" not in text
     assert "[Math]::Min($Models.Count, 50)" not in text
     assert "Sort-Object -Unique" not in text
@@ -378,6 +388,9 @@ def test_unix_model_updater_contract():
 
     assert "set -euo pipefail" in text
     assert "--tool codex|claude|both" in text
+    assert "--mode refresh|list|switch" in text
+    assert 'MODE_OPT="refresh"' in text
+    assert 'RUN_MODE="$(resolve_run_mode)"' in text
     assert "--list-models" in text
     assert "--no-picker" in text
     assert 'quoted_header="[model_providers.\\"${provider}\\"]"' in text
@@ -396,6 +409,14 @@ def test_unix_model_updater_contract():
     assert "ANTHROPIC_DEFAULT_OPUS_MODEL = $opus_model" in text
     assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku_model" in text
     assert "experimental_bearer_token" in text
+    assert "write_codex_model_cache" in text
+    assert "codex_model_cache_path" in text
+    assert "write_claude_gateway_cache" in text
+    assert "claude_gateway_cache_path" in text
+    assert "enable_claude_model_discovery" in text
+    assert '[ "$RUN_MODE" = "refresh" ]' in text
+    assert '[ "$RUN_MODE" = "list" ]' in text
+    assert "Model list refreshed. Current default model unchanged" in text
     assert "Showing first" not in text
     assert "NR <= limit" not in text
     assert "| sort -u" not in text

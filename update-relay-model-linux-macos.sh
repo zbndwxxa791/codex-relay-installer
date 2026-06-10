@@ -16,6 +16,7 @@
 #
 # Options:
 #   --tool codex|claude|both    Which tool to update (default: auto)
+#   --mode refresh|list|switch  refresh caches, list models, or switch default model (default: refresh)
 #   --model NAME                Use this model without prompting
 #   --base-url URL              Override base URL
 #   --api-key KEY               Override API key (default: read from config)
@@ -55,6 +56,7 @@ REQUEST_TIMEOUT_SEC=30
 
 # Options
 TOOL_OPT="auto"
+MODE_OPT="refresh"
 MODEL_OPT=""
 BASE_URL_OPT=""
 API_KEY_OPT=""
@@ -101,6 +103,11 @@ while [ $# -gt 0 ]; do
       TOOL_OPT="${2:-}"; shift 2 ;;
     --tool=*)
       TOOL_OPT="${1#--tool=}"; shift ;;
+    --mode)
+      [ $# -ge 2 ] && [ -n "${2:-}" ] || die "--mode requires a value"
+      MODE_OPT="${2:-}"; shift 2 ;;
+    --mode=*)
+      MODE_OPT="${1#--mode=}"; shift ;;
     --model)
       [ $# -ge 2 ] && [ -n "${2:-}" ] || die "--model requires a value"
       MODEL_OPT="${2:-}"; shift 2 ;;
@@ -143,6 +150,25 @@ case "$TOOL_OPT" in
   auto|codex|claude|both) ;;
   *) die "--tool must be one of: auto, codex, claude, both (got: $TOOL_OPT)" ;;
 esac
+
+case "$MODE_OPT" in
+  refresh|list|switch) ;;
+  *) die "--mode must be one of: refresh, list, switch (got: $MODE_OPT)" ;;
+esac
+
+resolve_run_mode() {
+  if [ "$LIST_MODELS" -eq 1 ]; then
+    printf 'list'
+  elif [ -n "$MODEL_OPT" ]; then
+    printf 'switch'
+  elif [ "$NO_PICKER" -eq 1 ]; then
+    printf 'refresh'
+  else
+    printf '%s' "$MODE_OPT"
+  fi
+}
+
+RUN_MODE="$(resolve_run_mode)"
 
 #----------------------------------------------------------------------
 # Shared helpers
@@ -349,6 +375,10 @@ codex_config_path() {
   printf '%s/config.toml' "$(codex_home)"
 }
 
+codex_model_cache_path() {
+  printf '%s/models_cache.json' "$(codex_home)"
+}
+
 normalize_codex_base_url() {
   local v="${1:-}"
   v="${v#"${v%%[![:space:]]*}"}"
@@ -403,6 +433,89 @@ codex_get_provider_value() {
       }
     }
   ' "$file"
+}
+
+write_codex_model_cache() {
+  local models="$1"
+  local tag="${2:-codex-relay}"
+  local cache_path cache_dir tmp_models py
+
+  [ -n "$models" ] || return 0
+  cache_path="$(codex_model_cache_path)"
+  cache_dir="$(dirname "$cache_path")"
+  mkdir -p "$cache_dir"
+  tmp_models="$(mktemp)"
+  printf '%s\n' "$models" | sed '/^$/d' > "$tmp_models"
+
+  py="$(command -v python3 || command -v python || true)"
+  if [ -n "$py" ]; then
+    "$py" - "$tmp_models" "$cache_path" <<'PY' || rm -f "$cache_path"
+import json
+import sys
+from datetime import datetime, timezone
+
+models_path, cache_path = sys.argv[1:3]
+seen = set()
+entries = []
+with open(models_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        model = line.strip()
+        if not model or model in seen:
+            continue
+        seen.add(model)
+        entries.append({
+            "slug": model,
+            "display_name": model,
+            "id": "",
+            "visibility": "list",
+            "supported_in_api": True,
+        })
+
+payload = {
+    "fetched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "etag": None,
+    "client_version": None,
+    "models": entries,
+}
+with open(cache_path, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+PY
+  fi
+
+  if [ ! -s "$cache_path" ]; then
+    awk '
+      function esc(s) {
+        gsub(/\\/, "\\\\", s)
+        gsub(/"/, "\\\"", s)
+        return s
+      }
+      BEGIN {
+        print "{"
+        print "  \"fetched_at\": \"\","
+        print "  \"etag\": null,"
+        print "  \"client_version\": null,"
+        print "  \"models\": ["
+      }
+      NF && !seen[$0]++ {
+        if (count++) print ","
+        m = esc($0)
+        printf "    {\"slug\":\"%s\",\"display_name\":\"%s\",\"id\":\"\",\"visibility\":\"list\",\"supported_in_api\":true}", m, m
+      }
+      END {
+        print ""
+        print "  ]"
+        print "}"
+      }
+    ' "$tmp_models" > "$cache_path"
+  fi
+
+  rm -f "$tmp_models"
+  if [ ! -s "$cache_path" ]; then
+    warn "Failed to refresh model cache at $cache_path" "$tag"
+    return 1
+  fi
+  log "Model cache refreshed: $cache_path" "$tag"
 }
 
 # Rewrites the "model = "..."" line inside the managed block at the top.
@@ -526,12 +639,27 @@ invoke_codex_update() {
     return 0
   fi
 
-  if [ "$LIST_MODELS" -eq 1 ]; then
+  if [ "$DRY_RUN" -eq 0 ]; then
+    write_codex_model_cache "$models" "$tag"
+  else
+    log "Dry run: would refresh model cache: $(codex_model_cache_path)" "$tag"
+  fi
+
+  if [ "$RUN_MODE" = "list" ]; then
     if [ -z "$models" ]; then
       warn "Relay returned no models." "$tag"
       return 0
     fi
     show_model_choices "$models" "$tag"
+    return 0
+  fi
+
+  if [ "$RUN_MODE" = "refresh" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "Dry run: model list fetched; default model would remain unchanged." "$tag"
+    else
+      log "Model list refreshed. Current default model unchanged: ${current_model:-<unset>}" "$tag"
+    fi
     return 0
   fi
 
@@ -588,6 +716,10 @@ claude_home() {
 
 claude_settings_path() {
   printf '%s/settings.json' "$(claude_home)"
+}
+
+claude_gateway_cache_path() {
+  printf '%s/cache/gateway-models.json' "$(claude_home)"
 }
 
 normalize_claude_base_url() {
@@ -669,6 +801,69 @@ fs.writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
 NODE
 }
 
+enable_claude_model_discovery() {
+  local path
+  path="$(claude_settings_path)"
+  SETTINGS_PATH="$path" \
+  CLAUDE_MODEL_DISCOVERY_ENV_KEY="$CLAUDE_MODEL_DISCOVERY_ENV_KEY" \
+  node <<'NODE'
+const fs = require("fs");
+const path = process.env.SETTINGS_PATH;
+const discoveryKey = process.env.CLAUDE_MODEL_DISCOVERY_ENV_KEY;
+let settings = {};
+if (fs.existsSync(path)) {
+  const raw = fs.readFileSync(path, "utf8").trim();
+  if (raw) settings = JSON.parse(raw);
+}
+if (!settings.env || typeof settings.env !== "object" || Array.isArray(settings.env)) {
+  settings.env = {};
+}
+settings.env[discoveryKey] = "1";
+fs.writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
+NODE
+}
+
+write_claude_gateway_cache() {
+  local models="$1"
+  local base_url="$2"
+  local tag="${3:-claude-relay}"
+  local cache_path cache_dir tmp_models
+
+  [ -n "$models" ] || return 0
+  cache_path="$(claude_gateway_cache_path)"
+  cache_dir="$(dirname "$cache_path")"
+  mkdir -p "$cache_dir"
+  tmp_models="$(mktemp)"
+  printf '%s\n' "$models" | sed '/^$/d' > "$tmp_models"
+
+  GATEWAY_MODELS_PATH="$tmp_models" \
+  GATEWAY_CACHE_PATH="$cache_path" \
+  GATEWAY_BASE_URL="$base_url" \
+  node <<'NODE'
+const fs = require("fs");
+const modelsPath = process.env.GATEWAY_MODELS_PATH;
+const cachePath = process.env.GATEWAY_CACHE_PATH;
+const baseUrl = process.env.GATEWAY_BASE_URL;
+const seen = new Set();
+const models = [];
+for (const line of fs.readFileSync(modelsPath, "utf8").split(/\r?\n/)) {
+  const id = line.trim();
+  if (!id || seen.has(id)) continue;
+  seen.add(id);
+  models.push({ id });
+}
+const payload = {
+  baseUrl,
+  fetchedAt: Date.now(),
+  models,
+};
+fs.writeFileSync(cachePath, JSON.stringify(payload, null, 2) + "\n");
+NODE
+
+  rm -f "$tmp_models"
+  log "Gateway cache refreshed: $cache_path" "$tag"
+}
+
 select_claude_family_model() {
   local models="$1"
   local family="$2"
@@ -729,12 +924,38 @@ invoke_claude_update() {
     return 0
   fi
 
-  if [ "$LIST_MODELS" -eq 1 ]; then
+  if [ "$RUN_MODE" = "list" ]; then
     if [ -z "$models" ]; then
       warn "Relay returned no models." "$tag"
       return 0
     fi
+    if [ "$DRY_RUN" -eq 0 ]; then
+      write_claude_gateway_cache "$models" "$base_url" "$tag"
+    else
+      log "Dry run: would refresh gateway model cache: $(claude_gateway_cache_path)" "$tag"
+    fi
     show_model_choices "$models" "$tag"
+    return 0
+  fi
+
+  if [ "$RUN_MODE" = "refresh" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "Dry run: would refresh gateway model cache: $(claude_gateway_cache_path)" "$tag"
+      if [ "$current_discovery" != "1" ]; then
+        log "Dry run: would enable model discovery in $settings_path" "$tag"
+      fi
+      return 0
+    fi
+
+    if [ "$current_discovery" != "1" ]; then
+      local backup
+      backup="$(backup_file "$settings_path")"
+      log "Backup written: $backup" "$tag"
+      enable_claude_model_discovery
+      log "Model discovery enabled: $CLAUDE_MODEL_DISCOVERY_ENV_KEY=1" "$tag"
+    fi
+    write_claude_gateway_cache "$models" "$base_url" "$tag"
+    log "Model list refreshed. Current default model unchanged: ${current_model:-<unset>}" "$tag"
     return 0
   fi
 
@@ -759,6 +980,12 @@ invoke_claude_update() {
   log "  ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet_model" "$tag"
   log "  ANTHROPIC_DEFAULT_OPUS_MODEL = $opus_model" "$tag"
   log "  ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku_model" "$tag"
+
+  if [ "$DRY_RUN" -eq 0 ]; then
+    write_claude_gateway_cache "$models" "$base_url" "$tag"
+  else
+    log "Dry run: would refresh gateway model cache: $(claude_gateway_cache_path)" "$tag"
+  fi
 
   if [ "$resolved_model" = "$current_model" ] \
     && [ "$current_discovery" = "1" ] \

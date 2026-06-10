@@ -212,30 +212,36 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https:/
 
 ## 更新模型列表
 
-中转平台后续可能加新模型。装好之后想拉最新模型列表、换默认模型，不需要重跑完整安装脚本，运行模型更新脚本就行。Codex 会更新默认 `model` 字段；Claude Code 会确保开启 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`，更新 `ANTHROPIC_MODEL`，并从网关模型列表里自动挑出 `sonnet` / `opus` / `haiku` 对应模型写入 `ANTHROPIC_DEFAULT_*_MODEL`。其他配置原样保留，并先写一份带时间戳的备份。
+中转平台后续可能加新模型。装好之后想拉最新模型列表、查看模型、换默认模型，不需要重跑完整安装脚本，运行模型脚本就行。这个脚本按 ccswitch 的思路拆成三个模式：`refresh` 只刷新客户端可读的完整模型缓存，不切默认模型；`list` 打印完整模型列表；`switch` 才切换默认模型。其他配置原样保留，需要写配置时会先写一份带时间戳的备份。
 
-脚本会自动从已有配置里读出 base URL 和 API key，无需重新粘 key。Codex 会优先读当前 provider 的 `experimental_bearer_token`，也兼容 provider 里的 `env_key` 环境变量；如果配置里确实没有 key，脚本会提示粘贴一次，并把 key 写回当前 provider，后续再更新就不用重复输入。Windows 日常直接用下面三条 PowerShell 7（`pwsh`）指令：Claude Code 一条、Codex 一条、两个一起更新一条。即使用 Windows PowerShell 5.1 的 `powershell` 启动，脚本也会自动转交给 `pwsh`，避免 5.1 解析较大的 Claude `settings.json` 时失败。
+脚本会自动从已有配置里读出 base URL 和 API key，无需重新粘 key。Codex 会优先读当前 provider 的 `experimental_bearer_token`，也兼容 provider 里的 `env_key` 环境变量；如果配置里确实没有 key，脚本会提示粘贴一次，并把 key 写回当前 provider，后续再更新就不用重复输入。Claude Code 的 `refresh` 会开启 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` 并刷新 `~/.claude/cache/gateway-models.json`；Codex 的 `refresh` 会刷新 `~/.codex/models_cache.json`。即使用 Windows PowerShell 5.1 的 `powershell` 启动，脚本也会自动转交给 `pwsh`，避免 5.1 解析较大的 Claude `settings.json` 时失败。
 
 ### PowerShell 一条指令更新
 
-如果你 fork 了这个项目，把下面命令里的 raw URL 换成自己仓库地址。脚本每次都会重新请求最新模型列表，并把全部模型列出来给你编号选择默认模型。Claude Code 的插件/CLI 会同时打开网关模型发现；重启后如果客户端支持模型发现，就能从中转的 `/v1/models` 看到完整列表并切换。
+如果你 fork 了这个项目，把下面命令里的 raw URL 换成自己仓库地址。Windows 日常使用 PowerShell 7（`pwsh`）。服务器上优先用 `refresh`，它只拉最新完整模型列表并写缓存，不会动当前默认模型。
 
-只更新 Claude Code CLI / VS Code 插件：
+只刷新 Claude Code CLI / VS Code 插件模型列表：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool claude'
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool claude -Mode refresh'
 ```
 
-只更新 Codex CLI / Codex Desktop / VS Code 插件：
+只刷新 Codex CLI / Codex Desktop / VS Code 插件模型列表：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex'
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex -Mode refresh'
 ```
 
-Claude Code 和 Codex 一起更新：
+Claude Code 和 Codex 一起刷新模型列表：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool both'
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool both -Mode refresh'
+```
+
+切默认模型时显式用 `switch`：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex -Mode switch'
 ```
 
 Linux/macOS：
@@ -257,7 +263,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File $updater
 pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool both
 pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool codex
 pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool claude
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -ListModels
+pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode refresh
+pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode list
+pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode switch
 pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -DryRun
 pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Model "gpt-5.5"
 ```
@@ -270,7 +278,9 @@ bash "$updater"
 bash "$updater" --tool both
 bash "$updater" --tool codex
 bash "$updater" --tool claude
-bash "$updater" --list-models
+bash "$updater" --mode refresh
+bash "$updater" --mode list
+bash "$updater" --mode switch
 bash "$updater" --dry-run
 bash "$updater" --model gpt-5.5
 ```
@@ -279,14 +289,17 @@ bash "$updater" --model gpt-5.5
 
 | 参数（Windows / Linux·macOS） | 什么时候用 |
 | --- | --- |
-| 不带参数 | **日常用这条** |
+| 不带参数 | **日常用这条**，默认 `refresh`，只刷新完整模型缓存，不切默认模型 |
 | `-Tool both` / `--tool both` | 跳过"更新哪个"的提问，Codex 和 Claude Code 一起更 |
 | `-Tool codex` / `--tool codex` | 只更 Codex，不动 Claude Code |
 | `-Tool claude` / `--tool claude` | 只更 Claude Code，不动 Codex |
-| `-ListModels` / `--list-models` | 只想看中转现在有哪些模型，不改任何配置 |
+| `-Mode refresh` / `--mode refresh` | 拉最新完整模型列表并写客户端缓存，不切默认模型 |
+| `-Mode list` / `--mode list` | 打印中转现在有哪些模型，并刷新缓存 |
+| `-Mode switch` / `--mode switch` | 交互选择并切默认模型 |
+| `-ListModels` / `--list-models` | 兼容旧参数，等同于 `list` |
 | `-DryRun` / `--dry-run` | 演练一遍，看脚本会怎么改，但不真写文件 |
-| `-Model "gpt-5.5"` / `--model gpt-5.5` | 已经知道要换成哪个，跳过交互式选择 |
-| `-NoModelPicker` / `--no-picker` | 完全跳过模型选择（配合 `-Model` 使用） |
+| `-Model "gpt-5.5"` / `--model gpt-5.5` | 已经知道要切成哪个，等同于 `switch` 并跳过交互式选择 |
+| `-NoModelPicker` / `--no-picker` | 兼容旧参数，等同于 `refresh` |
 | `-BaseUrl URL` / `--base-url URL` | 临时覆盖 base URL，不修改已保存的值 |
 | `-ApiKey KEY` / `--api-key KEY` | 临时用另一个 key 调用，不修改已保存的值 |
 

@@ -36,6 +36,8 @@ PS> .\update-relay-model-windows.ps1 -Tool claude -Model gpt-5.5 -DryRun
 param(
     [ValidateSet("auto", "codex", "claude", "both")]
     [string]$Tool = "auto",
+    [ValidateSet("refresh", "list", "switch")]
+    [string]$Mode = "refresh",
     [switch]$DryRun,
     [switch]$ListModels,
     [switch]$NoModelPicker,
@@ -97,6 +99,15 @@ $ClaudeModelDiscoveryEnvKey = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"
 
 # Shared
 $FallbackModel = "gpt-5.5"
+
+function Resolve-RunMode {
+    if ($ListModels) { return "list" }
+    if ($Model) { return "switch" }
+    if ($NoModelPicker) { return "refresh" }
+    return $Mode
+}
+
+$RunMode = Resolve-RunMode
 
 #------------------------------------------------------------------
 # Logging
@@ -833,12 +844,43 @@ function Invoke-CodexUpdate {
         Write-Warn -Tag $tag "Failed to fetch /models. Skipping Codex update."
         return
     }
-    Write-CodexModelCache -Models $models -Tag $tag
+    if (-not $DryRun) {
+        Write-CodexModelCache -Models $models -Tag $tag
+    }
+    else {
+        Write-Step -Tag $tag "Dry run: would refresh model cache: $(Get-CodexModelCachePath)"
+    }
 
-    if ($ListModels) {
+    if ($RunMode -eq "list") {
         if ($models.Count -eq 0) { Write-Warn -Tag $tag "Relay returned no models."; return }
         Write-Step -Tag $tag "Models from relay: $($models.Count)"
         Show-ModelChoices -Models $models -Tag $tag
+        return
+    }
+
+    if ($RunMode -eq "refresh") {
+        if (-not $shouldPersistApiKey) {
+            if ($DryRun) {
+                Write-Step -Tag $tag "Dry run: model list fetched; default model would remain unchanged."
+            }
+            else {
+                Write-Step -Tag $tag "Model list refreshed. Current default model unchanged: $($relay.Model)"
+            }
+            return
+        }
+
+        $updatedContent = Update-CodexProviderApiKey -Content $relay.Content -ProviderId $resolvedProviderId -BaseUrl $resolvedBaseUrl -ApiKey $resolvedApiKey
+        if ($DryRun) {
+            Write-Step -Tag $tag "Dry run: would save relay API key in provider '$resolvedProviderId'"
+            Write-Step -Tag $tag "Dry run: model list refreshed; default model would remain unchanged."
+            return
+        }
+
+        $backup = Backup-File -Path $relay.ConfigPath
+        Write-Step -Tag $tag "Backup written: $backup"
+        Save-TextFile -Path $relay.ConfigPath -Content $updatedContent
+        Write-Step -Tag $tag "Relay API key saved in provider: $resolvedProviderId"
+        Write-Step -Tag $tag "Model list refreshed. Current default model unchanged: $($relay.Model)"
         return
     }
 
@@ -1090,10 +1132,40 @@ function Invoke-ClaudeUpdate {
         return
     }
 
-    if ($ListModels) {
+    if ($RunMode -eq "list") {
         if ($models.Count -eq 0) { Write-Warn -Tag $tag "Relay returned no models."; return }
-        Write-ClaudeGatewayCache -Models $models -BaseUrl $resolvedBaseUrl -Tag $tag
+        if (-not $DryRun) {
+            Write-ClaudeGatewayCache -Models $models -BaseUrl $resolvedBaseUrl -Tag $tag
+        }
         Show-ModelChoices -Models $models -Tag $tag
+        return
+    }
+
+    if ($RunMode -eq "refresh") {
+        $settings = $relay.Settings
+        if (-not ($settings.PSObject.Properties.Name -contains "env") -or -not $settings.env) {
+            Ensure-ObjectProperty -Object $settings -Name "env" -Value ([pscustomobject]@{})
+        }
+        $modelDiscoveryAlreadyEnabled = ([string]$relay.ModelDiscovery) -eq "1"
+        if ($DryRun) {
+            Write-Step -Tag $tag "Dry run: would refresh gateway model cache: $(Get-ClaudeGatewayCachePath)"
+            if (-not $modelDiscoveryAlreadyEnabled) {
+                Write-Step -Tag $tag "Dry run: would enable model discovery in $($relay.SettingsPath)"
+            }
+            return
+        }
+
+        if (-not $modelDiscoveryAlreadyEnabled) {
+            Ensure-ObjectProperty -Object $settings.env -Name $ClaudeModelDiscoveryEnvKey -Value "1"
+            $backup = Backup-File -Path $relay.SettingsPath
+            Write-Step -Tag $tag "Backup written: $backup"
+            Save-ClaudeSettings -Path $relay.SettingsPath -Settings $settings
+            Write-Step -Tag $tag "Model discovery enabled: $ClaudeModelDiscoveryEnvKey=1"
+        }
+
+        Write-Step -Tag $tag "Refreshing gateway model cache: $(Get-ClaudeGatewayCachePath)"
+        Write-ClaudeGatewayCache -Models $models -BaseUrl $resolvedBaseUrl -Tag $tag
+        Write-Step -Tag $tag "Model list refreshed. Current default model unchanged: $($relay.Model)"
         return
     }
 
@@ -1116,7 +1188,12 @@ function Invoke-ClaudeUpdate {
     foreach ($entry in $familyModels.GetEnumerator()) {
         Write-Step -Tag $tag "  $($entry.Key) = $($entry.Value)"
     }
-    Write-ClaudeGatewayCache -Models $models -BaseUrl $resolvedBaseUrl -Tag $tag
+    if (-not $DryRun) {
+        Write-ClaudeGatewayCache -Models $models -BaseUrl $resolvedBaseUrl -Tag $tag
+    }
+    else {
+        Write-Step -Tag $tag "Dry run: would refresh gateway model cache: $(Get-ClaudeGatewayCachePath)"
+    }
 
     $modelDiscoveryAlreadyEnabled = ([string]$relay.ModelDiscovery) -eq "1"
     $familyModelsAlreadyMatch = Test-ClaudeFamilyModelsMatch -Relay $relay -FamilyModels $familyModels
