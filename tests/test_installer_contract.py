@@ -136,6 +136,22 @@ def test_readme_contains_public_distribution_commands():
     assert "模型选择" in text
     assert "--restore" in text
     assert "--uninstall" in text
+    assert "update-relay-model-windows.ps1" in text
+    assert "update-relay-model-linux-macos.sh" in text
+    assert "PowerShell 一条指令更新" in text
+    assert "PowerShell 7" in text
+    assert "自动转交给 `pwsh`" in text
+    assert "只更新 Claude Code CLI / VS Code 插件" in text
+    assert "只更新 Codex CLI / Codex Desktop / VS Code 插件" in text
+    assert "Claude Code 和 Codex 一起更新" in text
+    assert "pwsh -NoProfile -ExecutionPolicy Bypass -Command" in text
+    assert "-File $p -Tool claude" in text
+    assert "-File $p -Tool codex" in text
+    assert "-File $p -Tool both" in text
+    assert "全部模型列出来" in text
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1" in text
+    assert "自动挑出 `sonnet` / `opus` / `haiku`" in text
+    assert "看到完整列表并切换" in text
 
 
 def test_readme_uses_full_local_script_paths():
@@ -252,3 +268,83 @@ def test_claude_code_docs_contract():
     assert "Remote SSH" in combined
     assert "your-relay-api-key" in combined
     assert "替换成你的 relay API key" in combined
+
+
+def test_model_update_scripts_are_public_artifacts():
+    readme = read_text("README.md")
+    update_scripts = sorted(path.name for path in ROOT.glob("update-relay-model-*"))
+    assert update_scripts == [
+        "update-relay-model-linux-macos.sh",
+        "update-relay-model-windows.ps1",
+    ]
+
+    for script_name in [
+        "update-relay-model-windows.ps1",
+        "update-relay-model-linux-macos.sh",
+    ]:
+        assert (ROOT / script_name).is_file(), f"{script_name} is referenced by README but missing"
+        assert script_name in readme
+
+
+def test_windows_model_updater_contract():
+    text = read_text("update-relay-model-windows.ps1")
+
+    assert '[ValidateSet("auto", "codex", "claude", "both")]' in text
+    assert '$PSVersionTable.PSVersion.Major -lt 6' in text
+    assert 'Get-Command "pwsh"' in text
+    assert "$MyInvocation.BoundParameters.GetEnumerator()" in text
+    assert "re-running with PowerShell 7" in text
+    assert "exit $LASTEXITCODE" in text
+    assert "[switch]$ListModels" in text
+    assert "[switch]$NoModelPicker" in text
+    assert "Get-CodexProviderBlockValue" in text
+    assert '(?:`"$escapedProviderId`"|$escapedProviderId)' in text
+    assert "Update-CodexManagedModelLine" in text
+    assert "Backup-File -Path $relay.ConfigPath" in text
+    assert "Backup-File -Path $relay.SettingsPath" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+    assert "ModelDiscovery" in text
+    assert "Model discovery enabled" in text
+    assert "Select-ClaudeFamilyModel" in text
+    assert "Resolve-ClaudeFamilyModels" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL = Select-ClaudeFamilyModel" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL = Select-ClaudeFamilyModel" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = Select-ClaudeFamilyModel" in text
+    assert "experimental_bearer_token" in text
+    assert "Showing first" not in text
+    assert "[Math]::Min($Models.Count, 50)" not in text
+    assert "Sort-Object -Unique" not in text
+    assert "$seen.ContainsKey($id)" in text
+
+
+def test_unix_model_updater_contract():
+    text = read_text("update-relay-model-linux-macos.sh")
+
+    assert "set -euo pipefail" in text
+    assert "--tool codex|claude|both" in text
+    assert "--list-models" in text
+    assert "--no-picker" in text
+    assert 'quoted_header="[model_providers.\\"${provider}\\"]"' in text
+    assert 'stripped == header || stripped == quoted_header' in text
+    assert 'die "--model requires a value"' in text
+    assert "codex_replace_managed_model" in text
+    assert "backup_file \"$config_path\"" in text
+    assert "backup_file \"$settings_path\"" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+    assert "Model discovery enabled" in text
+    assert "select_claude_family_model" in text
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet_model" in text
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL = $opus_model" in text
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku_model" in text
+    assert "experimental_bearer_token" in text
+    assert "Showing first" not in text
+    assert "NR <= limit" not in text
+    assert "| sort -u" not in text
+    assert "seen.add(mid)" in text
+    assert "awk '!seen[$0]++'" in text
