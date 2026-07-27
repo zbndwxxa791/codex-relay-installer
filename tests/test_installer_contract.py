@@ -1,424 +1,337 @@
-import json
 import re
-import shutil
-import subprocess
 from pathlib import Path
-
-import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE_URL = "https://litellm.blackwhitedeer.studio/v1"
-CLAUDE_DEFAULT_BASE_URL = "https://litellm.blackwhitedeer.studio"
+INSTALLERS = ROOT / "installers"
+DEFAULT_CODEX_BASE_URL = "https://litellm.blackwhitedeer.studio/v1"
+DEFAULT_CLAUDE_BASE_URL = "https://litellm.blackwhitedeer.studio"
+
+CODEX_INSTALLERS = {
+    "windows": "installers/install-codex-relay-windows.ps1",
+    "macos": "installers/install-codex-relay-macos.sh",
+    "linux": "installers/install-codex-relay-linux.sh",
+}
+CLAUDE_INSTALLERS = {
+    "windows": "installers/install-claude-code-relay-windows.ps1",
+    "macos": "installers/install-claude-code-relay-macos.sh",
+    "linux": "installers/install-claude-code-relay-linux.sh",
+}
+ALL_INSTALLERS = {**CODEX_INSTALLERS, **{f"claude-{k}": v for k, v in CLAUDE_INSTALLERS.items()}}
+CODEX_MODEL_UPDATERS = {
+    "windows": "installers/update-codex-relay-windows.ps1",
+    "macos": "installers/update-codex-relay-macos.sh",
+    "linux": "installers/update-codex-relay-linux.sh",
+}
+CLAUDE_MODEL_UPDATERS = {
+    "windows": "installers/update-claude-code-relay-windows.ps1",
+    "macos": "installers/update-claude-code-relay-macos.sh",
+    "linux": "installers/update-claude-code-relay-linux.sh",
+}
+ALL_MODEL_UPDATERS = {
+    **CODEX_MODEL_UPDATERS,
+    **{f"claude-{k}": v for k, v in CLAUDE_MODEL_UPDATERS.items()},
+}
 
 
 def read_text(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
-def test_windows_installer_contract():
-    text = read_text("install-codex-relay-windows.ps1")
+def test_six_platform_installers_exist_under_installers_directory():
+    expected = sorted([*CODEX_INSTALLERS.values(), *CLAUDE_INSTALLERS.values()])
+    actual = sorted(
+        str(path.relative_to(ROOT)).replace("\\", "/")
+        for path in INSTALLERS.iterdir()
+        if path.name.startswith("install-")
+    )
 
-    assert "param(" in text
-    assert f'$DefaultBaseUrl = "{DEFAULT_BASE_URL}"' in text
-    assert "[switch]$DryRun" in text
-    assert "[switch]$Uninstall" in text
-    assert "[switch]$Restore" in text
-    assert "[switch]$Doctor" in text
-    assert "[switch]$TestConnection" in text
-    assert "[switch]$Benchmark" in text
-    assert "[switch]$ListModels" in text
-    assert "[switch]$NoModelPicker" in text
-    assert "EnvVarName" not in text
-    assert "wire_api = \"responses\"" in text
-    assert "model_provider = \"$ProviderId\"" in text
-    assert 'model_reasoning_effort = "xhigh"' in text
-    assert "New-TrustedProjectBlock" in text
-    assert "Remove-ProjectConfig" in text
-    assert "[projects." in text
-    assert "experimental_bearer_token" in text
-    assert "env_key =" not in text
-    assert "env_key_instructions" not in text
-    assert "[Environment]::SetEnvironmentVariable" not in text
-    assert "Invoke-RestMethod" in text
-    assert "Invoke-WebRequest" in text
-    assert "Find-NpmCommand" in text
-    assert "Ensure-NpmAvailable" in text
-    assert "Ensure-GitAvailable" in text
-    assert "Git.Git" in text
-    assert "Ensure-CodexDesktop" in text
-    assert "winget install Codex -s msstore" in text
-    assert "OpenJS.NodeJS.LTS" in text
-    assert "winget" in text
-    assert "Measure-RelayRequest" in text
-    assert "Invoke-Benchmark" in text
-    assert "Get-ScriptPathForHelp" in text
-    assert "Write-ReRunHints" in text
-    assert "Ensure-WindowsSandboxConfig" in text
-    assert "Remove-RelayProviderConfig" in text
-    assert 'sandbox = "elevated"' in text
-    assert "spend/keys" in text
-    assert "responses" in text
-    assert "models" in text
-    assert ".backup-" in text
-    assert "BEGIN CODEX RELAY INSTALLER MANAGED BLOCK" in text
-    assert "END CODEX RELAY INSTALLER MANAGED BLOCK" in text
+    assert actual == expected
+    assert (INSTALLERS / "README.md").is_file()
+
+def test_six_platform_model_updaters_exist_under_installers_directory():
+    expected = sorted([*CODEX_MODEL_UPDATERS.values(), *CLAUDE_MODEL_UPDATERS.values()])
+    actual = sorted(
+        str(path.relative_to(ROOT)).replace("\\", "/")
+        for path in INSTALLERS.iterdir()
+        if path.name.startswith("update-")
+    )
+
+    assert actual == expected
+    assert not (ROOT / "update-relay-model-windows.ps1").exists()
+    assert not (ROOT / "update-relay-model-linux-macos.sh").exists()
+
+def test_root_scripts_are_compatibility_wrappers():
+    wrappers = {
+        "install-codex-relay-windows.ps1": "installers\\install-codex-relay-windows.ps1",
+        "install-claude-code-relay-windows.ps1": "installers\\install-claude-code-relay-windows.ps1",
+        "install-codex-relay-linux-macos.sh": "installers/install-codex-relay-",
+        "install-claude-code-relay-linux-macos.sh": "installers/install-claude-code-relay-",
+    }
+
+    for wrapper, target_fragment in wrappers.items():
+        text = read_text(wrapper)
+        assert target_fragment in text
+        assert "installers" in text
+
+    assert "@args" in read_text("install-codex-relay-windows.ps1")
+    assert '"$@"' in read_text("install-codex-relay-linux-macos.sh")
 
 
-def test_unix_installer_contract():
-    text = read_text("install-codex-relay-linux-macos.sh")
+def test_codex_installers_use_responses_protocol_and_official_cli_commands():
+    for os_name, script in CODEX_INSTALLERS.items():
+        text = read_text(script)
+        assert DEFAULT_CODEX_BASE_URL in text
+        assert 'wire_api = "responses"' in text
+        assert "experimental_bearer_token" in text
+        assert "ANTHROPIC_BASE_URL" not in text
+        assert "ANTHROPIC_AUTH_TOKEN" not in text
+        assert "CODEX_RELAY_API_KEY" not in text
+        assert "env_key =" not in text
+        assert "env_key_instructions" not in text
+        assert "npm install -g @openai/codex" not in text
+        assert "@openai/codex" not in text
 
-    assert "set -euo pipefail" in text
-    assert f'DEFAULT_BASE_URL="{DEFAULT_BASE_URL}"' in text
-    assert "--dry-run" in text
-    assert "--uninstall" in text
-    assert "--restore" in text
-    assert "--doctor" in text
-    assert "--test" in text
-    assert "--benchmark" in text
-    assert "--list-models" in text
-    assert "--no-model-picker" in text
-    assert "--env-var-name" not in text
-    assert "CODEX_RELAY_API_KEY" not in text
+        if os_name == "windows":
+            assert "irm https://chatgpt.com/codex/install.ps1 | iex" in text
+            assert "Ensure-NpmAvailable" in text
+            assert "OpenJS.NodeJS.LTS" in text
+            assert re.search(r"Install-RelayConfig \{\n\s+Assert-ProviderId.*\n\n\s+Ensure-NpmAvailable\n\s+Ensure-GitAvailable\n\s+Ensure-CodexCli", text)
+        else:
+            assert "curl -fsSL https://chatgpt.com/codex/install.sh | sh" in text
+            assert "ensure_npm_available" in text
+            assert re.search(r"install_relay_config\(\) \{\n\s+assert_provider_id\n\n\s+ensure_npm_available\n\s+ensure_git_available\n\s+ensure_codex_cli", text)
+
+
+def test_claude_installers_use_anthropic_messages_gateway_and_official_cli_commands():
+    for os_name, script in CLAUDE_INSTALLERS.items():
+        text = read_text(script)
+        assert DEFAULT_CLAUDE_BASE_URL in text
+        assert f'DEFAULT_BASE_URL="{DEFAULT_CLAUDE_BASE_URL}"' in text or f'$DefaultBaseUrl = "{DEFAULT_CLAUDE_BASE_URL}"' in text
+        assert 'https://litellm.blackwhitedeer.studio/v1"' not in text
+        assert "ANTHROPIC_BASE_URL" in text
+        assert "ANTHROPIC_AUTH_TOKEN" in text
+        assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+        assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+        assert "anthropic-version" in text
+        assert "messages" in text
+        assert "wire_api" not in text
+        assert "experimental_bearer_token" not in text
+        assert "npm install -g @anthropic-ai/claude-code" not in text
+        assert "@anthropic-ai/claude-code" not in text
+
+        if os_name == "windows":
+            assert "irm https://claude.ai/install.ps1 | iex" in text
+            assert "Ensure-NpmAvailable" in text
+            assert re.search(r"Invoke-Install \{\n\s+Ensure-NpmAvailable\n\s+Ensure-ClaudeCli", text)
+        else:
+            assert "curl -fsSL https://claude.ai/install.sh | bash" in text
+            assert "require_json_editor" in text
+            assert re.search(r"invoke_install\(\) \{\n\s+local base api_key model path\n\s+require_json_editor\n\s+ensure_claude_cli", text)
+
+
+def test_platform_scripts_use_native_node_install_paths():
+    assert "winget" in read_text(CODEX_INSTALLERS["windows"])
+    assert "OpenJS.NodeJS.LTS" in read_text(CODEX_INSTALLERS["windows"])
+    assert "nodejs.org/dist/index.tab" in read_text(CODEX_INSTALLERS["macos"])
+    assert "sudo installer -pkg" in read_text(CODEX_INSTALLERS["macos"])
+    assert "deb.nodesource.com/setup_lts.x" in read_text(CODEX_INSTALLERS["linux"])
+    assert "rpm.nodesource.com/setup_lts.x" in read_text(CODEX_INSTALLERS["linux"])
+
+    assert "winget" in read_text(CLAUDE_INSTALLERS["windows"])
+    assert "OpenJS.NodeJS.LTS" in read_text(CLAUDE_INSTALLERS["windows"])
+    assert "nodejs.org/dist/index.tab" in read_text(CLAUDE_INSTALLERS["macos"])
+    assert "sudo installer -pkg" in read_text(CLAUDE_INSTALLERS["macos"])
+    assert "deb.nodesource.com/setup_lts.x" in read_text(CLAUDE_INSTALLERS["linux"])
+    assert "rpm.nodesource.com/setup_lts.x" in read_text(CLAUDE_INSTALLERS["linux"])
+
+
+def test_platform_scripts_guard_against_wrong_os():
+    assert 'TARGET_OS="Darwin"' in read_text(CODEX_INSTALLERS["macos"])
+    assert 'TARGET_OS="Linux"' in read_text(CODEX_INSTALLERS["linux"])
+    assert 'TARGET_OS="Darwin"' in read_text(CLAUDE_INSTALLERS["macos"])
+    assert 'TARGET_OS="Linux"' in read_text(CLAUDE_INSTALLERS["linux"])
+
+    assert "ensure_target_os" in read_text(CODEX_INSTALLERS["macos"])
+    assert "ensure_target_os" in read_text(CODEX_INSTALLERS["linux"])
+    assert "ensure_target_os" in read_text(CLAUDE_INSTALLERS["macos"])
+    assert "ensure_target_os" in read_text(CLAUDE_INSTALLERS["linux"])
+
+
+def test_installers_do_not_write_proxy_or_use_acceleration_mirrors():
+    banned = [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "ghproxy",
+        "gh.llkk.cc",
+        "hub.gitmirror",
+        "registry.npmmirror.com",
+    ]
+
+    for script in [*CODEX_INSTALLERS.values(), *CLAUDE_INSTALLERS.values()]:
+        text = read_text(script)
+        for token in banned:
+            assert token not in text, f"{script} unexpectedly contains {token}"
+
+
+def test_readme_documents_six_public_commands_and_protocols():
+    text = read_text("README.md")
+
+    for script in [*CODEX_INSTALLERS.values(), *CLAUDE_INSTALLERS.values()]:
+        assert script in text
+        assert f"https://your-domain.example/{script}" in text
+        assert f"https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/{script}" in text
+
+    assert "OpenAI Responses API" in text
+    assert "Anthropic Messages" in text
     assert 'wire_api = "responses"' in text
-    assert 'model_provider = "$PROVIDER_ID"' in text
-    assert 'model_reasoning_effort = "xhigh"' in text
-    assert "trusted_project_block" in text
-    assert "remove_project_config" in text
-    assert "[projects." in text
-    assert "experimental_bearer_token" in text
-    assert "env_key =" not in text
-    assert "env_key_instructions" not in text
-    assert "set_persistent_env" not in text
-    assert "curl" in text
-    assert "load_nvm_if_available" in text
-    assert "ensure_npm_available" in text
-    assert "ensure_git_available" in text
-    assert "ensure_codex_desktop" in text
-    assert "codex app" in text
-    assert "nvm install --lts" in text
-    assert "NodeSource" in text
-    assert "timed_curl_json" in text
-    assert "invoke_benchmark" in text
-    assert "script_path_for_help" in text
-    assert "print_rerun_hints" in text
-    assert "ensure_windows_sandbox_config" in text
-    assert "remove_relay_provider_config" in text
-    assert 'sandbox = "elevated"' in text
-    assert "spend/keys" in text
-    assert "responses" in text
-    assert "models" in text
-    assert ".backup-" in text
-    assert "BEGIN CODEX RELAY INSTALLER MANAGED BLOCK" in text
-    assert "END CODEX RELAY INSTALLER MANAGED BLOCK" in text
-
-
-def test_readme_contains_public_distribution_commands():
-    text = read_text("README.md")
-
-    assert DEFAULT_BASE_URL in text
-    assert "https://relay.example.com/v1" not in text
-    assert "install-codex-relay-windows.ps1" in text
-    assert "install-codex-relay-linux-macos.sh" in text
-    assert "Responses API" in text
-    assert "experimental_bearer_token" in text
-    assert 'model_reasoning_effort = "xhigh"' in text
-    assert "[projects." in text
-    assert "CODEX_RELAY_API_KEY" not in text
-    assert "--dry-run" in text
-    assert "Node.js LTS" in text
-    assert "npm" in text
-    assert "winget" in text
-    assert "nvm" in text
-    assert "Git" in text
-    assert "Codex Desktop" in text
-    assert "Claude Code CLI" in text
-    assert "$url =" not in text
-    assert "--doctor" in text
-    assert "--test" in text
-    assert "--benchmark" in text
-    assert "--list-models" in text
-    assert "模型选择" in text
-    assert "--restore" in text
-    assert "--uninstall" in text
-    assert "update-relay-model-windows.ps1" in text
-    assert "update-relay-model-linux-macos.sh" in text
-    assert "PowerShell 一条指令更新" in text
-    assert "PowerShell 7" in text
-    assert "自动转交给 `pwsh`" in text
-    assert "ccswitch" in text
-    assert "`refresh` 只刷新客户端可读的完整模型缓存" in text
-    assert "`list` 打印完整模型列表" in text
-    assert "`switch` 才切换默认模型" in text
-    assert "只刷新 Claude Code CLI / VS Code 插件模型列表" in text
-    assert "只刷新 Codex CLI / Codex Desktop / VS Code 插件模型列表" in text
-    assert "Claude Code 和 Codex 一起刷新模型列表" in text
-    assert "pwsh -NoProfile -ExecutionPolicy Bypass -Command" in text
-    assert "-File $p -Tool claude -Mode refresh" in text
-    assert "-File $p -Tool codex -Mode refresh" in text
-    assert "-File $p -Tool both -Mode refresh" in text
-    assert "-File $p -Tool codex -Mode switch" in text
-    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1" in text
-    assert "~/.claude/cache/gateway-models.json" in text
-    assert "~/.codex/models_cache.json" in text
-
-
-def test_readme_uses_full_local_script_paths():
-    text = read_text("README.md")
-
-    assert '$installer = "C:\\path\\to\\install-codex-relay-windows.ps1"' in text
-    assert 'installer="/path/to/install-codex-relay-linux-macos.sh"' in text
-    assert "C:\\Users\\wjj20" not in text
-    assert "/c/Users/wjj20" not in text
-    assert '-File ".\\install-codex-relay-windows.ps1"' not in text
-    assert 'bash "install-codex-relay-linux-macos.sh"' not in text
-
-
-def test_claude_code_windows_installer_contract():
-    text = read_text("install-claude-code-relay-windows.ps1")
-
-    assert f'$DefaultBaseUrl = "{CLAUDE_DEFAULT_BASE_URL}"' in text
-    assert "[switch]$DryRun" in text
-    assert "[switch]$Uninstall" in text
-    assert "[switch]$Restore" in text
-    assert "[switch]$Doctor" in text
-    assert "[switch]$TestConnection" in text
-    assert "[switch]$ListModels" in text
-    assert "Get-SettingsPath" in text
-    assert "~/.claude/settings.json" in text
     assert "ANTHROPIC_BASE_URL" in text
     assert "ANTHROPIC_AUTH_TOKEN" in text
-    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
-    assert "anthropic-version" in text
-    assert "messages" in text
-    assert "models" in text
-    assert ".backup-" in text
-    assert "experimental_bearer_token" not in text
-    assert "wire_api" not in text
-    assert "Find-NpmCommand" in text
-    assert "Ensure-NpmAvailable" in text
-    assert "OpenJS.NodeJS.LTS" in text
-    assert "npm.cmd install -g @anthropic-ai/claude-code" in text
+    assert "experimental_bearer_token" in text
+    assert "脚本不会内置客户 API key" in text
+    assert "终端里按提示输入" in text
+    assert "不写代理环境变量" in text
+    assert "npm 包安装" not in text
 
 
-def test_claude_code_windows_installer_has_curl_fallback_for_relay_requests():
-    text = read_text("install-claude-code-relay-windows.ps1")
+def test_installers_readme_is_customer_facing():
+    text = read_text("installers/README.md")
 
-    assert "function Invoke-ClaudeRelayJson" in text
-    assert "function Invoke-CurlJsonRequest" in text
-    assert "curl.exe" in text
-    assert "--ssl-no-revoke" in text
-    assert "--tlsv1.2" in text
-    assert "--http1.1" in text
-    assert "Invoke-ClaudeRelayJson -Method Get" in text
-    assert "Invoke-ClaudeRelayJson -Method Post" in text
+    for script in [*CODEX_INSTALLERS.values(), *CLAUDE_INSTALLERS.values()]:
+        assert Path(script).name in text
+
+    assert "面向正在安装 Codex 或 Claude Code 中转配置的用户" in text
+    assert "准备好你的 relay API key" in text
+    assert "请从下载页复制与你系统和工具匹配的命令" in text
+    assert "Node.js、CLI 安装、模型选择和配置写入都会由脚本自动完成" in text
+    assert "<脚本下载地址>" in text
+    assert "curl -fsSL \"<脚本下载地址>\" | bash" in text
+    assert "Invoke-RestMethod '<脚本下载地址>'" in text
+    assert "~/.codex/config.toml" in text
+    assert "~/.claude/settings.json" in text
+    assert "Remote SSH" in text
+    assert "your-domain.example" not in text
+    assert "GitHub raw" not in text
+    assert "你自己网站" not in text
+    assert "你的安装脚本" not in text
+    assert ' -o "${TMPDIR' not in text
+    for heading in [
+        "## Windows Codex 手动配置",
+        "## macOS Codex 手动配置",
+        "## Linux Codex 手动配置",
+        "## Windows Claude Code 手动配置",
+        "## macOS Claude Code 手动配置",
+        "## Linux Claude Code 手动配置",
+    ]:
+        assert heading in text
+
+    assert r"C:\Users\<你的用户名>\.codex\config.toml" in text
+    assert "/Users/<你的用户名>/.codex/config.toml" in text
+    assert "/home/<你的用户名>/.codex/config.toml" in text
+    assert r"C:\Users\<你的用户名>\.claude\settings.json" in text
+    assert "/Users/<你的用户名>/.claude/settings.json" in text
+    assert "/home/<你的用户名>/.claude/settings.json" in text
+    assert text.count('wire_api = "responses"') == 3
+    assert text.count('experimental_bearer_token = "替换成你的 relay API key"') == 3
+    assert text.count('"ANTHROPIC_BASE_URL": "https://litellm.blackwhitedeer.studio"') >= 3
+    assert text.count('"ANTHROPIC_AUTH_TOKEN": "替换成你的 relay API key"') >= 3
+    assert text.count('"CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"') >= 3
+    assert 'sandbox = "elevated"' in text
+    assert "把下面内容粘到 `config.toml`" in text
+    assert "把下面内容粘到 `settings.json`" in text
+
+
+def test_docs_reference_split_platform_scripts():
+    docs = {
+        "claude-code-relay-installation.md": read_text("claude-code-relay-installation.md"),
+        "claude-code-server-debug.md": read_text("claude-code-server-debug.md"),
+        "codex-server-debug.md": read_text("codex-server-debug.md"),
+    }
+
+    assert "installers/install-claude-code-relay-linux.sh" in docs["claude-code-relay-installation.md"]
+    assert "installers/install-claude-code-relay-macos.sh" in docs["claude-code-relay-installation.md"]
+    assert "installers/install-claude-code-relay-linux.sh" in docs["claude-code-server-debug.md"]
+    assert "installers/install-claude-code-relay-macos.sh" in docs["claude-code-server-debug.md"]
+    assert "installers/install-codex-relay-linux.sh" in docs["codex-server-debug.md"]
+    assert "install-codex-relay-linux-macos.sh" not in "\n".join(docs.values())
+    assert "install-claude-code-relay-linux-macos.sh" not in "\n".join(docs.values())
 
 
 def test_windows_installers_do_not_assign_reserved_powershell_variables():
     reserved_names = "home|host|pid|pshome|pwd"
     assignment_pattern = re.compile(rf"^\s*\$({reserved_names})\s*=", re.IGNORECASE | re.MULTILINE)
 
-    for script_name in [
-        "install-codex-relay-windows.ps1",
-        "install-claude-code-relay-windows.ps1",
-    ]:
+    for script_name in [CODEX_INSTALLERS["windows"], CLAUDE_INSTALLERS["windows"]]:
         text = read_text(script_name)
         match = assignment_pattern.search(text)
         assert match is None, f"{script_name} assigns reserved PowerShell variable ${match.group(1)}"
 
 
-def test_claude_code_unix_installer_contract():
-    text = read_text("install-claude-code-relay-linux-macos.sh")
+def test_model_update_scripts_expose_manual_and_safe_update_contracts():
+    reserved_names = "home|host|pid|pshome|pwd"
+    assignment_pattern = re.compile(rf"^\s*\$({reserved_names})\s*=", re.IGNORECASE | re.MULTILINE)
+    for os_name, script_name in ALL_MODEL_UPDATERS.items():
+        text = read_text(script_name)
+        assert "refresh" in text
+        assert "list" in text
+        assert "switch" in text
+        assert "models-file" in text.lower() or "ModelsFile" in text
+        assert "manual" in text.lower()
+        assert "dry-run" in text.lower() or "DryRun" in text
+        assert "/v1/models" in text
+        assert "404" in text
+        assert "405" in text
 
-    assert "set -euo pipefail" in text
-    assert f'DEFAULT_BASE_URL="{CLAUDE_DEFAULT_BASE_URL}"' in text
-    assert "--dry-run" in text
-    assert "--uninstall" in text
-    assert "--restore" in text
-    assert "--doctor" in text
-    assert "--test" in text
-    assert "--list-models" in text
-    assert "settings.json" in text
-    assert "ANTHROPIC_BASE_URL" in text
-    assert "ANTHROPIC_AUTH_TOKEN" in text
-    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
-    assert "anthropic-version" in text
-    assert "messages" in text
-    assert "models" in text
-    assert ".backup-" in text
-    assert "experimental_bearer_token" not in text
-    assert "wire_api" not in text
-    assert "ensure_npm_available" in text
-    assert "nvm install --lts" in text
-    assert "npm install -g @anthropic-ai/claude-code" in text
+        if os_name.endswith("windows") or os_name == "windows":
+            assert "ModelsFile" in text
+            assert "ReplaceCustomCatalog" in text or "claude-" in script_name
+            match = assignment_pattern.search(text)
+            assert match is None, f"{script_name} assigns reserved PowerShell variable ${match.group(1)}"
+        else:
+            assert "--models-file" in text
+            assert "--manual" in text
+            assert "--dry-run" in text
 
+    for script_name in CODEX_MODEL_UPDATERS.values():
+        text = read_text(script_name)
+        assert "cc-switch-model-catalog.json" in text
+        assert "model_catalog_json" in text
+        assert "models_cache.json" in text
+        assert "base_instructions" in text
+        assert "supports_reasoning_summaries" in text
+        assert "128000" in text
 
-def test_claude_code_docs_contract():
-    docs = [
-        read_text("claude-code-relay-installation.md"),
-        read_text("claude-code-manual-config.md"),
-        read_text("claude-code-server-debug.md"),
-    ]
-    combined = "\n".join(docs)
-
-    assert CLAUDE_DEFAULT_BASE_URL in combined
-    assert "ANTHROPIC_BASE_URL" in combined
-    assert "ANTHROPIC_AUTH_TOKEN" in combined
-    assert "VS Code Claude Code" in combined
-    assert "Windows" in combined
-    assert "Linux" in combined
-    assert "macOS" in combined
-    assert "Remote SSH" in combined
-    assert "your-relay-api-key" in combined
-    assert "替换成你的 relay API key" in combined
+    for script_name in CLAUDE_MODEL_UPDATERS.values():
+        text = read_text(script_name)
+        assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+        assert "gateway-models.json" in text
+        assert "ANTHROPIC_MODEL" in text
+        assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+        assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+        assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
 
 
-def test_model_update_scripts_are_public_artifacts():
-    readme = read_text("README.md")
-    update_scripts = sorted(path.name for path in ROOT.glob("update-relay-model-*"))
-    assert update_scripts == [
-        "update-relay-model-linux-macos.sh",
-        "update-relay-model-windows.ps1",
-    ]
-
-    for script_name in [
-        "update-relay-model-windows.ps1",
-        "update-relay-model-linux-macos.sh",
-    ]:
-        assert (ROOT / script_name).is_file(), f"{script_name} is referenced by README but missing"
-        assert script_name in readme
+def test_model_update_scripts_are_platform_specific():
+    assert 'TARGET_OS="Darwin"' in read_text(CODEX_MODEL_UPDATERS["macos"])
+    assert 'TARGET_OS="Linux"' in read_text(CODEX_MODEL_UPDATERS["linux"])
+    assert 'TARGET_OS="Darwin"' in read_text(CLAUDE_MODEL_UPDATERS["macos"])
+    assert 'TARGET_OS="Linux"' in read_text(CLAUDE_MODEL_UPDATERS["linux"])
 
 
-def test_windows_model_updater_contract():
-    text = read_text("update-relay-model-windows.ps1")
+def test_readmes_document_six_model_updaters_and_manual_sources():
+    root_readme = read_text("README.md")
+    customer_readme = read_text("installers/README.md")
 
-    assert '[ValidateSet("auto", "codex", "claude", "both")]' in text
-    assert '[ValidateSet("refresh", "list", "switch")]' in text
-    assert '[string]$Mode = "refresh"' in text
-    assert '$RunMode = Resolve-RunMode' in text
-    assert '$PSVersionTable.PSVersion.Major -lt 6' in text
-    assert 'Get-Command "pwsh"' in text
-    assert "$MyInvocation.BoundParameters.GetEnumerator()" in text
-    assert "re-running with PowerShell 7" in text
-    assert "exit $LASTEXITCODE" in text
-    assert "[switch]$ListModels" in text
-    assert "[switch]$NoModelPicker" in text
-    assert "Get-CodexProviderBlockValue" in text
-    assert '(?:`"$escapedProviderId`"|$escapedProviderId)' in text
-    assert "Update-CodexManagedModelLine" in text
-    assert "Backup-File -Path $relay.ConfigPath" in text
-    assert "Backup-File -Path $relay.SettingsPath" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
-    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
-    assert "ModelDiscovery" in text
-    assert "Model discovery enabled" in text
-    assert "Select-ClaudeFamilyModel" in text
-    assert "Resolve-ClaudeFamilyModels" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL = Select-ClaudeFamilyModel" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL = Select-ClaudeFamilyModel" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = Select-ClaudeFamilyModel" in text
-    assert "experimental_bearer_token" in text
-    assert 'Resolve-CodexProviderApiKey' in text
-    assert 'Get-EnvironmentVariableValue' in text
-    assert 'Key "env_key"' in text
-    assert 'Update-CodexProviderApiKey' in text
-    assert '$shouldPersistApiKey = $true' in text
-    assert 'Relay API key saved in provider' in text
-    assert '$RunMode -eq "refresh"' in text
-    assert '$RunMode -eq "list"' in text
-    assert 'Model list refreshed. Current default model unchanged' in text
-    assert "Showing first" not in text
-    assert "[Math]::Min($Models.Count, 50)" not in text
-    assert "Sort-Object -Unique" not in text
-    assert "$seen.ContainsKey($id)" in text
-    assert "System.Collections.ArrayList" in text
-    assert "System.Collections.Generic.List[object]" not in text
-    assert '$entry.Contains("id")' in text
-    assert '$entry.Contains("visibility")' in text
-    assert '$entry.Contains("supported_in_api")' in text
-    assert '$entry.ContainsKey(' not in text
-    assert r"\Q" not in text
-    assert r"\E" not in text
+    for script_name in ALL_MODEL_UPDATERS.values():
+        assert script_name in root_readme
+        assert Path(script_name).name in customer_readme
 
-
-def test_windows_model_updater_writes_codex_cache(tmp_path):
-    pwsh = shutil.which("pwsh")
-    if not pwsh:
-        pytest.skip("PowerShell 7 is not available")
-
-    script_path = str(ROOT / "update-relay-model-windows.ps1").replace("'", "''")
-    codex_home = str(tmp_path).replace("'", "''")
-    command = f"""
-$ErrorActionPreference = 'Stop'
-$script = Get-Content -Raw -LiteralPath '{script_path}'
-$marker = '$resolvedTool = Resolve-ToolSelection'
-$idx = $script.IndexOf($marker)
-if ($idx -lt 0) {{ throw 'entry marker not found' }}
-Invoke-Expression $script.Substring(0, $idx)
-$env:CODEX_HOME = '{codex_home}'
-Write-CodexModelCache -Models @('gpt-5.5', 'claude-sonnet-test') -Tag 'test'
-Get-Content -Raw -LiteralPath (Join-Path $env:CODEX_HOME 'models_cache.json')
-"""
-    result = subprocess.run(
-        [pwsh, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout[result.stdout.index("{") :])
-    assert [model["slug"] for model in payload["models"]] == [
-        "gpt-5.5",
-        "claude-sonnet-test",
-    ]
-
-
-def test_unix_model_updater_contract():
-    text = read_text("update-relay-model-linux-macos.sh")
-
-    assert "set -euo pipefail" in text
-    assert "--tool codex|claude|both" in text
-    assert "--mode refresh|list|switch" in text
-    assert 'MODE_OPT="refresh"' in text
-    assert 'RUN_MODE="$(resolve_run_mode)"' in text
-    assert "--list-models" in text
-    assert "--no-picker" in text
-    assert 'quoted_header="[model_providers.\\"${provider}\\"]"' in text
-    assert 'stripped == header || stripped == quoted_header' in text
-    assert 'die "--model requires a value"' in text
-    assert "codex_replace_managed_model" in text
-    assert "backup_file \"$config_path\"" in text
-    assert "backup_file \"$settings_path\"" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" in text
-    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
-    assert "Model discovery enabled" in text
-    assert "select_claude_family_model" in text
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet_model" in text
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL = $opus_model" in text
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku_model" in text
-    assert "experimental_bearer_token" in text
-    assert "write_codex_model_cache" in text
-    assert "codex_model_cache_path" in text
-    assert "write_claude_gateway_cache" in text
-    assert "claude_gateway_cache_path" in text
-    assert "enable_claude_model_discovery" in text
-    assert '[ "$RUN_MODE" = "refresh" ]' in text
-    assert '[ "$RUN_MODE" = "list" ]' in text
-    assert "Model list refreshed. Current default model unchanged" in text
-    assert "Showing first" not in text
-    assert "NR <= limit" not in text
-    assert "| sort -u" not in text
-    assert "seen.add(mid)" in text
-    assert "awk '!seen[$0]++'" in text
+    for text in (root_readme, customer_readme):
+        assert "cc-switch-model-catalog.json" in text
+        assert "gateway-models.json" in text
+        assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" in text
+        assert "--models-file" in text
+        assert "--manual" in text
+        assert "ModelsFile" in text
+        assert "Manual" in text

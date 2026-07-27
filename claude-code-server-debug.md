@@ -24,7 +24,7 @@ https://litellm.blackwhitedeer.studio/v1/messages
 SSH 到服务器后运行：
 
 ```bash
-installer="/path/to/install-claude-code-relay-linux-macos.sh"
+installer="/path/to/installers/install-claude-code-relay-linux.sh"
 bash "$installer"
 ```
 
@@ -47,7 +47,7 @@ claude --version 2>/dev/null || true
 如果服务器没有 Claude Code CLI：
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+curl -fsSL https://claude.ai/install.sh | bash
 ```
 
 ## Windows 服务器或远程 Windows 桌面
@@ -55,7 +55,7 @@ npm install -g @anthropic-ai/claude-code
 在目标 Windows 用户下运行：
 
 ```powershell
-$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
+$installer = "C:\path\to\installers\install-claude-code-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -76,16 +76,16 @@ Get-Command claude -ErrorAction SilentlyContinue
 claude --version
 ```
 
-如果 PowerShell 的 `npm.ps1` 被执行策略拦截，使用：
+如果服务器没有 Claude Code CLI，优先使用官方 Windows 命令：
 
 ```powershell
-npm.cmd install -g @anthropic-ai/claude-code
+powershell -ExecutionPolicy Bypass -Command "irm https://claude.ai/install.ps1 | iex"
 ```
 
 ## macOS 远程机器
 
 ```bash
-installer="/path/to/install-claude-code-relay-linux-macos.sh"
+installer="/path/to/installers/install-claude-code-relay-macos.sh"
 bash "$installer"
 bash "$installer" --doctor
 bash "$installer" --test

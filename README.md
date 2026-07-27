@@ -1,140 +1,173 @@
 # Codex / Claude Code Relay Installer
 
-这个仓库提供一组可公开分发的安装脚本和说明文档，用来把本机或服务器上的 AI 编程工具切换到 LiteLLM 中转服务。
+这个仓库提供可公开分发的一键安装脚本，用来把客户本机上的 AI 编程工具切到 LiteLLM 中转服务。
 
-当前支持两条配置路径：
+当前支持 3 个操作系统、2 个工具，共 6 个主安装脚本。所有主脚本都放在 `installers/` 下，仓库根目录的旧脚本只保留为兼容 wrapper。
 
-- Codex CLI、Codex Desktop、VS Code Codex 插件：使用 OpenAI Responses API 兼容中转，配置写入 `~/.codex/config.toml`。
-- Claude Code CLI、VS Code Claude Code 插件：使用 Anthropic Messages 兼容中转，配置写入 `~/.claude/settings.json`。
+## 默认协议和地址
 
-脚本内置默认 base URL，但不会包含你的 API key。运行时由用户在本机终端交互输入自己的 key。
-
-## 文件速览
-
-| 用途 | 文件 |
-| --- | --- |
-| Codex Windows 安装脚本 | [install-codex-relay-windows.ps1](install-codex-relay-windows.ps1) |
-| Codex Linux/macOS 安装脚本 | [install-codex-relay-linux-macos.sh](install-codex-relay-linux-macos.sh) |
-| Claude Code Windows 安装脚本 | [install-claude-code-relay-windows.ps1](install-claude-code-relay-windows.ps1) |
-| Claude Code Linux/macOS 安装脚本 | [install-claude-code-relay-linux-macos.sh](install-claude-code-relay-linux-macos.sh) |
-| 模型更新脚本 Windows（Codex + Claude Code） | [update-relay-model-windows.ps1](update-relay-model-windows.ps1) |
-| 模型更新脚本 Linux/macOS（Codex + Claude Code） | [update-relay-model-linux-macos.sh](update-relay-model-linux-macos.sh) |
-| Codex 手动配置 | [codex-manual-config.md](codex-manual-config.md) |
-| Codex 服务器排障 | [codex-server-debug.md](codex-server-debug.md) |
-| Claude Code 安装说明 | [claude-code-relay-installation.md](claude-code-relay-installation.md) |
-| Claude Code 手动配置 | [claude-code-manual-config.md](claude-code-manual-config.md) |
-| Claude Code 服务器排障 | [claude-code-server-debug.md](claude-code-server-debug.md) |
-| 直接调用 API | [api-direct-calling-guide.md](api-direct-calling-guide.md) |
-
-## 默认地址
-
-Codex 使用 OpenAI Responses API 兼容地址，默认 base URL 带 `/v1`：
+Codex 使用 OpenAI Responses API 兼容协议，默认 base URL 带 `/v1`：
 
 ```text
 https://litellm.blackwhitedeer.studio/v1
 ```
 
-Claude Code 使用 Anthropic Messages 兼容地址，默认 base URL 不带 `/v1`：
+Claude Code 使用 Anthropic Messages 兼容协议，默认 base URL 不带 `/v1`：
 
 ```text
 https://litellm.blackwhitedeer.studio
 ```
 
-Claude Code 会自己请求：
+脚本不会内置客户 API key。客户运行脚本后，在终端里按提示输入自己的 relay API key 和默认模型。
 
-```text
-https://litellm.blackwhitedeer.studio/v1/models
-https://litellm.blackwhitedeer.studio/v1/messages
-```
+## 文件速览
 
-## 前提
+| 系统 | Codex | Claude Code |
+| --- | --- | --- |
+| Windows | `installers/install-codex-relay-windows.ps1` | `installers/install-claude-code-relay-windows.ps1` |
+| macOS | `installers/install-codex-relay-macos.sh` | `installers/install-claude-code-relay-macos.sh` |
+| Linux | `installers/install-codex-relay-linux.sh` | `installers/install-claude-code-relay-linux.sh` |
 
-- 中转服务需要开放对应协议：Codex 用 OpenAI Responses API，Claude Code 用 Anthropic Messages。
-- 用户需要有自己的 relay API key。
-- 默认模型是 `gpt-5.5`，脚本会优先尝试从 `GET /v1/models` 拉取模型列表做模型选择。
-- 如果目标机器没有 Node.js/npm，脚本会在需要安装 CLI 时引导补齐 Node.js LTS：Windows 使用 `winget` 安装 `OpenJS.NodeJS.LTS`，Linux/macOS 优先使用 `nvm` 安装 LTS。
-- Codex 安装脚本会先引导安装 Git、Node.js/npm、Codex CLI；Windows 会继续尝试通过 Microsoft Store 安装 Codex Desktop，macOS 会通过 `codex app` 引导桌面端。
-- Claude Code 安装脚本会先引导安装 Node.js/npm 和 Claude Code CLI，再写入 relay 配置。
+兼容入口：
 
-## Codex 一键安装
+| 旧入口 | 行为 |
+| --- | --- |
+| `install-codex-relay-windows.ps1` | 转发到 Windows Codex 主脚本 |
+| `install-claude-code-relay-windows.ps1` | 转发到 Windows Claude Code 主脚本 |
+| `install-codex-relay-linux-macos.sh` | 按 `uname` 转发到 macOS 或 Linux Codex 主脚本 |
+| `install-claude-code-relay-linux-macos.sh` | 按 `uname` 转发到 macOS 或 Linux Claude Code 主脚本 |
 
-如果你 fork 了这个项目，把下面的 URL 换成自己仓库里的 raw 文件地址。
+模型更新脚本同样按操作系统和工具拆成 6 份，每份都可以单独下载运行：
 
-Windows PowerShell：
+| 系统 | Codex 模型更新 | Claude Code 模型更新 |
+| --- | --- | --- |
+| Windows | `installers/update-codex-relay-windows.ps1` | `installers/update-claude-code-relay-windows.ps1` |
+| macOS | `installers/update-codex-relay-macos.sh` | `installers/update-claude-code-relay-macos.sh` |
+| Linux | `installers/update-codex-relay-linux.sh` | `installers/update-claude-code-relay-linux.sh` |
+
+## 安装方式
+
+客户只需要复制对应的一条命令。命令会下载并运行本仓库的安装脚本；脚本内部会按需安装 Node.js、安装对应 CLI、拉取模型列表、提示输入 relay API key 和默认模型，并写好配置。
+
+脚本默认直连官方地址，不写代理环境变量，也不使用第三方 GitHub 加速代理。如果官方安装命令失败，脚本会直接报错并提示用户检查网络或重试。
+
+脚本内部会使用这些官方或系统原生方式：
+
+- Windows Node.js：`winget install -e --id OpenJS.NodeJS.LTS`。
+- macOS Node.js：nodejs.org 官方 LTS `.pkg` 和系统 `installer`。
+- Linux Node.js：发行版包管理器或 NodeSource LTS 源。
+- Codex CLI：Windows 用 `irm https://chatgpt.com/codex/install.ps1 | iex`，macOS/Linux 用 `curl -fsSL https://chatgpt.com/codex/install.sh | sh`。
+- Claude Code CLI：Windows 用 `irm https://claude.ai/install.ps1 | iex`，macOS/Linux 用 `curl -fsSL https://claude.ai/install.sh | bash`。
+
+### 网站一条命令
+
+把下面命令里的 `https://your-domain.example` 换成你自己网站的真实域名。
+
+Windows Codex：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-windows.ps1' -OutFile ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-codex-relay-windows.ps1')); powershell -NoProfile -ExecutionPolicy Bypass -File ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-codex-relay-windows.ps1'))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'install-codex-relay-windows.ps1'; Invoke-RestMethod 'https://your-domain.example/installers/install-codex-relay-windows.ps1' -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p"
 ```
 
-Linux/macOS：
-
-```bash
-curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh" -o "${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
-bash "${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
-```
-
-Codex 脚本会提示输入 relay API key 和 default model。安装完成后，Codex CLI、Codex Desktop、VS Code Codex 插件会读取同一个 `~/.codex/config.toml`。
-
-## Claude Code 一键安装
-
-Windows PowerShell：
+Windows Claude Code：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-windows.ps1' -OutFile ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-claude-code-relay-windows.ps1')); powershell -NoProfile -ExecutionPolicy Bypass -File ([IO.Path]::Combine([IO.Path]::GetTempPath(),'install-claude-code-relay-windows.ps1'))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'install-claude-code-relay-windows.ps1'; Invoke-RestMethod 'https://your-domain.example/installers/install-claude-code-relay-windows.ps1' -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p"
 ```
 
-Linux/macOS：
+macOS Codex：
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-claude-code-relay-linux-macos.sh" -o "${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
-bash "${TMPDIR:-/tmp}/install-claude-code-relay-linux-macos.sh"
+curl -fsSL "https://your-domain.example/installers/install-codex-relay-macos.sh" | bash
 ```
 
-Claude Code 脚本会提示输入 relay API key 和默认模型。安装完成后，Claude Code CLI 和 VS Code Claude Code 插件会读取同一个 `~/.claude/settings.json`。
+macOS Claude Code：
 
-## Codex 会写入什么
+```bash
+curl -fsSL "https://your-domain.example/installers/install-claude-code-relay-macos.sh" | bash
+```
 
-脚本会先备份：
+Linux Codex：
+
+```bash
+curl -fsSL "https://your-domain.example/installers/install-codex-relay-linux.sh" | bash
+```
+
+Linux Claude Code：
+
+```bash
+curl -fsSL "https://your-domain.example/installers/install-claude-code-relay-linux.sh" | bash
+```
+
+### GitHub raw 一条命令
+
+如果你先直接用 GitHub 分发，可以使用当前仓库 raw URL。
+
+Windows Codex：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'install-codex-relay-windows.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-codex-relay-windows.ps1' -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p"
+```
+
+Windows Claude Code：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'install-claude-code-relay-windows.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-claude-code-relay-windows.ps1' -OutFile $p; powershell -NoProfile -ExecutionPolicy Bypass -File $p"
+```
+
+macOS Codex：
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-codex-relay-macos.sh" | bash
+```
+
+macOS Claude Code：
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-claude-code-relay-macos.sh" | bash
+```
+
+Linux Codex：
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-codex-relay-linux.sh" | bash
+```
+
+Linux Claude Code：
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-claude-code-relay-linux.sh" | bash
+```
+
+## 脚本会写入什么
+
+Codex 脚本会备份并更新：
 
 ```text
-~/.codex/config.toml.backup-YYYYMMDD-HHMMSS
+~/.codex/config.toml
 ```
 
-然后写入或更新这些配置：
+核心配置如下：
 
 ```toml
-# BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 model = "gpt-5.5"
 model_provider = "custom-relay"
 model_reasoning_effort = "xhigh"
-# END CODEX RELAY INSTALLER MANAGED BLOCK
 
-[windows]
-sandbox = "elevated"
-
-[projects."/path/to/current/project"]
-trust_level = "trusted"
-
-# BEGIN CODEX RELAY INSTALLER MANAGED BLOCK
 [model_providers.custom-relay]
 name = "custom-relay"
 base_url = "https://litellm.blackwhitedeer.studio/v1"
 wire_api = "responses"
 experimental_bearer_token = "your-relay-api-key"
-# END CODEX RELAY INSTALLER MANAGED BLOCK
 ```
 
-重新运行 Codex 安装脚本会覆盖旧的 `custom-relay` provider 配置，不会堆叠重复 provider 表，也会保留无关的 Codex 配置。API key 会直接写入 `experimental_bearer_token`，不会写入环境变量、shell profile、`launchctl` 或 `environment.d`。
-
-## Claude Code 会写入什么
-
-脚本会先备份：
+Claude Code 脚本会备份并更新：
 
 ```text
-~/.claude/settings.json.backup-YYYYMMDD-HHMMSS
+~/.claude/settings.json
 ```
 
-然后在 `settings.json` 的 `env` 下写入或更新这些键：
+核心配置如下：
 
 ```json
 {
@@ -150,192 +183,134 @@ experimental_bearer_token = "your-relay-api-key"
 }
 ```
 
-脚本会保留 `settings.json` 里其他已有配置，例如主题、权限、MCP、插件设置等。注意 `ANTHROPIC_BASE_URL` 写中转根地址，不要手动加 `/v1`。
-
 ## 常用参数
 
-把 `/path/to/...` 或 `C:\path\to\...` 换成脚本在目标机器上的完整路径。
-
-Codex Linux/macOS：
-
-```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --dry-run
-bash "$installer" --doctor
-bash "$installer" --test
-bash "$installer" --benchmark
-bash "$installer" --list-models
-bash "$installer" --restore
-bash "$installer" --uninstall
-bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
-```
-
-Codex Windows：
+Windows 示例：
 
 ```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
+$installer = "C:\path\to\installers\install-codex-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Benchmark
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -ListModels
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio/v1" -Model "gpt-5.5"
 ```
 
-Claude Code Linux/macOS：
+macOS/Linux 示例：
 
 ```bash
-installer="/path/to/install-claude-code-relay-linux-macos.sh"
+installer="/path/to/installers/install-codex-relay-linux.sh"
 bash "$installer" --dry-run
 bash "$installer" --doctor
 bash "$installer" --test
 bash "$installer" --list-models
 bash "$installer" --restore
 bash "$installer" --uninstall
-bash "$installer" --base-url "https://litellm.blackwhitedeer.studio" --model "gpt-5.5"
+bash "$installer" --base-url "https://litellm.blackwhitedeer.studio/v1" --model "gpt-5.5"
 ```
 
-Claude Code Windows：
-
-```powershell
-$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -DryRun
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Doctor
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -TestConnection
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -ListModels
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio" -Model "gpt-5.5"
-```
+Claude Code 参数同名，只需要把脚本路径换成对应 Claude Code 脚本。Codex 额外支持 `-Benchmark` / `--benchmark`。
 
 ## 更新模型列表
 
-中转平台后续可能加新模型。装好之后想拉最新模型列表、查看模型、换默认模型，不需要重跑完整安装脚本，运行模型脚本就行。这个脚本按 ccswitch 的思路拆成三个模式：`refresh` 只刷新客户端可读的完整模型缓存，不切默认模型；`list` 打印完整模型列表；`switch` 才切换默认模型。其他配置原样保留，需要写配置时会先写一份带时间戳的备份。
+安装完成后请选择与你的操作系统、工具对应的更新脚本。默认 `refresh` 会刷新模型列表，但不会改变当前默认模型；`switch` 才会切换默认模型。
 
-脚本会自动从已有配置里读出 base URL 和 API key，无需重新粘 key。Codex 会优先读当前 provider 的 `experimental_bearer_token`，也兼容 provider 里的 `env_key` 环境变量；如果配置里确实没有 key，脚本会提示粘贴一次，并把 key 写回当前 provider，后续再更新就不用重复输入。Claude Code 的 `refresh` 会开启 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` 并刷新 `~/.claude/cache/gateway-models.json`；Codex 的 `refresh` 会刷新 `~/.codex/models_cache.json`。即使用 Windows PowerShell 5.1 的 `powershell` 启动，脚本也会自动转交给 `pwsh`，避免 5.1 解析较大的 Claude `settings.json` 时失败。
-
-### PowerShell 一条指令更新
-
-如果你 fork 了这个项目，把下面命令里的 raw URL 换成自己仓库地址。Windows 日常使用 PowerShell 7（`pwsh`）。服务器上优先用 `refresh`，它只拉最新完整模型列表并写缓存，不会动当前默认模型。
-
-只刷新 Claude Code CLI / VS Code 插件模型列表：
+Windows Codex：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool claude -Mode refresh'
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\installers\update-codex-relay-windows.ps1" -Mode refresh
 ```
 
-只刷新 Codex CLI / Codex Desktop / VS Code 插件模型列表：
+Windows Claude Code：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex -Mode refresh'
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\installers\update-claude-code-relay-windows.ps1" -Mode refresh
 ```
 
-Claude Code 和 Codex 一起刷新模型列表：
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool both -Mode refresh'
-```
-
-切默认模型时显式用 `switch`：
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command '$p = Join-Path $env:TEMP "update-relay-model-windows.ps1"; Invoke-RestMethod "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-windows.ps1" -OutFile $p; pwsh -NoProfile -ExecutionPolicy Bypass -File $p -Tool codex -Mode switch'
-```
-
-Linux/macOS：
+macOS：
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/update-relay-model-linux-macos.sh" -o "${TMPDIR:-/tmp}/update-relay-model-linux-macos.sh"
-bash "${TMPDIR:-/tmp}/update-relay-model-linux-macos.sh"
+bash "/path/to/installers/update-codex-relay-macos.sh" --mode refresh
+bash "/path/to/installers/update-claude-code-relay-macos.sh" --mode refresh
 ```
 
-### 常用参数
+Linux：
 
-把 `/path/to/...` 或 `C:\path\to\...` 换成脚本在目标机器上的完整路径。绝大多数情况只需要第一条不带参数的命令，下面其它参数都是特殊场景才用。
+```bash
+bash "/path/to/installers/update-codex-relay-linux.sh" --mode refresh
+bash "/path/to/installers/update-claude-code-relay-linux.sh" --mode refresh
+```
+
+查看和切换模型：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -Mode list
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -Mode switch -Model "gpt-5.5"
+```
+
+```bash
+bash ./installers/update-codex-relay-linux.sh --mode list
+bash ./installers/update-codex-relay-linux.sh --mode switch --model "gpt-5.5"
+```
+
+无法或不想访问 `/v1/models` 时，可以显式提供模型列表。使用这些参数后脚本不会发起网络请求：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -Models "gpt-5.5","gpt-5.6"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-claude-code-relay-windows.ps1" -ModelsFile "C:\path\to\models.json"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -Manual
+```
+
+```bash
+bash ./installers/update-codex-relay-linux.sh --models "gpt-5.5,gpt-5.6"
+bash ./installers/update-claude-code-relay-linux.sh --models-file "/path/to/models.json"
+bash ./installers/update-codex-relay-linux.sh --manual
+```
+
+### 六类脚本逐一导入清单或交互输入
 
 Windows：
 
 ```powershell
-$updater = "C:\path\to\update-relay-model-windows.ps1"
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool both
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool codex
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Tool claude
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode refresh
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode list
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Mode switch
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -DryRun
-pwsh -NoProfile -ExecutionPolicy Bypass -File $updater -Model "gpt-5.5"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -ModelsFile "C:\path\models.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-codex-relay-windows.ps1" -Manual
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-claude-code-relay-windows.ps1" -ModelsFile "C:\path\models.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\installers\update-claude-code-relay-windows.ps1" -Manual
 ```
 
-Linux/macOS：
+macOS：
 
 ```bash
-updater="/path/to/update-relay-model-linux-macos.sh"
-bash "$updater"
-bash "$updater" --tool both
-bash "$updater" --tool codex
-bash "$updater" --tool claude
-bash "$updater" --mode refresh
-bash "$updater" --mode list
-bash "$updater" --mode switch
-bash "$updater" --dry-run
-bash "$updater" --model gpt-5.5
+bash ./installers/update-codex-relay-macos.sh --models-file "/path/models.txt"
+bash ./installers/update-codex-relay-macos.sh --manual
+bash ./installers/update-claude-code-relay-macos.sh --models-file "/path/models.txt"
+bash ./installers/update-claude-code-relay-macos.sh --manual
 ```
 
-参数对照表：
-
-| 参数（Windows / Linux·macOS） | 什么时候用 |
-| --- | --- |
-| 不带参数 | **日常用这条**，默认 `refresh`，只刷新完整模型缓存，不切默认模型 |
-| `-Tool both` / `--tool both` | 跳过"更新哪个"的提问，Codex 和 Claude Code 一起更 |
-| `-Tool codex` / `--tool codex` | 只更 Codex，不动 Claude Code |
-| `-Tool claude` / `--tool claude` | 只更 Claude Code，不动 Codex |
-| `-Mode refresh` / `--mode refresh` | 拉最新完整模型列表并写客户端缓存，不切默认模型 |
-| `-Mode list` / `--mode list` | 打印中转现在有哪些模型，并刷新缓存 |
-| `-Mode switch` / `--mode switch` | 交互选择并切默认模型 |
-| `-ListModels` / `--list-models` | 兼容旧参数，等同于 `list` |
-| `-DryRun` / `--dry-run` | 演练一遍，看脚本会怎么改，但不真写文件 |
-| `-Model "gpt-5.5"` / `--model gpt-5.5` | 已经知道要切成哪个，等同于 `switch` 并跳过交互式选择 |
-| `-NoModelPicker` / `--no-picker` | 兼容旧参数，等同于 `refresh` |
-| `-BaseUrl URL` / `--base-url URL` | 临时覆盖 base URL，不修改已保存的值 |
-| `-ApiKey KEY` / `--api-key KEY` | 临时用另一个 key 调用，不修改已保存的值 |
-
-### 注意
-
-- Claude Code 更新脚本依赖本机的 Node.js（和原安装脚本一样，用来合并 `settings.json`）。Codex 更新优先使用 `python3` 替换 TOML 中的 model 行，没有 Python 时自动回落到 `awk` 实现。
-- 更新完模型后请重开终端或重启 VS Code / Codex Desktop / Claude Code，让客户端重新读取配置。
-
-## 诊断和连通性测试
-
-Codex 诊断会检查 Codex CLI、配置文件、API key 配置、模型列表接口是否可达。连通性测试会发送最小 Responses API 请求。一次性测速和额度状态探测可以用 `--benchmark` / `-Benchmark`，它会测试模型列表、最小 Responses 请求耗时，并尝试读取 LiteLLM 的 spend/quota 元数据端点。
-
-Claude Code 诊断会检查 Claude Code CLI、`settings.json`、模型列表接口和 Anthropic Messages 最小请求。`--test` / `-TestConnection` 会调用 `/v1/models` 和 `/v1/messages`。
-
-跳过模型选择可以这样运行：
-
-```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -NoModelPicker -Model "gpt-5.5"
-```
+Linux：
 
 ```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --no-model-picker --model "gpt-5.5"
+bash ./installers/update-codex-relay-linux.sh --models-file "/path/models.txt"
+bash ./installers/update-codex-relay-linux.sh --manual
+bash ./installers/update-claude-code-relay-linux.sh --models-file "/path/models.txt"
+bash ./installers/update-claude-code-relay-linux.sh --manual
 ```
+文本清单每行一个模型 ID，空行和以 `#` 开头的行会被忽略。JSON 可使用字符串数组、对象数组、OpenAI `data` 格式或 `models` 格式；对象支持 `id`、`display_name`、`owned_by`、`context_window`。
+
+Codex 会更新 `~/.codex/cc-switch-model-catalog.json`，并在 `config.toml` 写入 `model_catalog_json = "cc-switch-model-catalog.json"`。Claude Code 会开启 `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`，并维护 `~/.claude/cache/gateway-models.json` 兼容缓存。详细手工更新步骤和完整配置见 `installers/README.md`。
 
 ## 验证
 
-Codex 安装后，重新打开终端或重启 VS Code/Codex Desktop：
+Codex 安装后重开终端或重启 VS Code/Codex Desktop：
 
 ```bash
 codex --version
 codex
 ```
 
-Claude Code 安装后，重新打开终端或重启 VS Code Claude Code 插件：
+Claude Code 安装后重开终端或重启 VS Code Claude Code 插件：
 
 ```bash
 claude --version
@@ -344,37 +319,31 @@ claude
 
 如果使用 VS Code Remote SSH，配置必须写到远端服务器当前用户的 `~/.codex/config.toml` 或 `~/.claude/settings.json`，不是本地电脑的文件。
 
-## 服务器和手动配置
+## 排障和手动配置
 
-- Codex 跑在服务器或 Remote SSH 里时，优先看 [codex-server-debug.md](codex-server-debug.md)。
-- Claude Code 跑在服务器或 Remote SSH 里时，优先看 [claude-code-server-debug.md](claude-code-server-debug.md)。
-- 不能运行脚本时，Codex 看 [codex-manual-config.md](codex-manual-config.md)，Claude Code 看 [claude-code-manual-config.md](claude-code-manual-config.md)。
-- 只想验证 relay API 本身时，看 [api-direct-calling-guide.md](api-direct-calling-guide.md)。
+- Codex 跑在服务器或 Remote SSH 里时，看 `codex-server-debug.md`。
+- Claude Code 跑在服务器或 Remote SSH 里时，看 `claude-code-server-debug.md`。
+- 不能运行脚本时，Codex 看 `codex-manual-config.md`，Claude Code 看 `claude-code-manual-config.md`。
+- 只想验证 relay API 本身时，看 `api-direct-calling-guide.md`。
 
 ## 回滚
 
 恢复最近一次备份：
 
 ```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Restore
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\installers\install-codex-relay-windows.ps1" -Restore
 ```
 
 ```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --restore
+bash "/path/to/installers/install-codex-relay-linux.sh" --restore
 ```
 
 卸载脚本管理的 relay 配置：
 
 ```powershell
-$installer = "C:\path\to\install-codex-relay-windows.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\installers\install-codex-relay-windows.ps1" -Uninstall
 ```
 
 ```bash
-installer="/path/to/install-codex-relay-linux-macos.sh"
-bash "$installer" --uninstall
+bash "/path/to/installers/install-codex-relay-linux.sh" --uninstall
 ```
-
-Claude Code 的回滚和卸载使用同名参数，只需把脚本路径换成 `install-claude-code-relay-windows.ps1` 或 `install-claude-code-relay-linux-macos.sh`。

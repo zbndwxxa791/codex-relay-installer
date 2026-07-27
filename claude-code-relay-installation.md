@@ -33,7 +33,7 @@ https://litellm.blackwhitedeer.studio/v1/messages
 把脚本下载或保存到本机后运行：
 
 ```powershell
-$installer = "C:\path\to\install-claude-code-relay-windows.ps1"
+$installer = "C:\path\to\installers\install-claude-code-relay-windows.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -49,16 +49,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Uninstall
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer -BaseUrl "https://litellm.blackwhitedeer.studio" -Model "gpt-5.5"
 ```
 
-如果 PowerShell 阻止 `npm.ps1`，安装 Claude Code CLI 时优先使用：
+如果需要手动安装 Claude Code CLI，优先使用官方 Windows 命令：
 
 ```powershell
-npm.cmd install -g @anthropic-ai/claude-code
+powershell -ExecutionPolicy Bypass -Command "irm https://claude.ai/install.ps1 | iex"
 ```
 
 ## Linux
 
 ```bash
-installer="/path/to/install-claude-code-relay-linux-macos.sh"
+installer="/path/to/installers/install-claude-code-relay-linux.sh"
 bash "$installer"
 ```
 
@@ -74,25 +74,25 @@ bash "$installer" --uninstall
 bash "$installer" --base-url "https://litellm.blackwhitedeer.studio" --model "gpt-5.5"
 ```
 
-如果还没有 Claude Code CLI：
+如果还没有 Claude Code CLI，优先使用官方命令：
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+curl -fsSL https://claude.ai/install.sh | bash
 ```
 
 ## macOS
 
-macOS 使用同一个 Linux/macOS 脚本：
+macOS 使用独立脚本：
 
 ```bash
-installer="/path/to/install-claude-code-relay-linux-macos.sh"
+installer="/path/to/installers/install-claude-code-relay-macos.sh"
 bash "$installer"
 ```
 
-如果还没有 Node.js，可以先安装 Node.js LTS，再安装 Claude Code：
+如果还没有 Claude Code CLI，优先使用官方命令：
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+curl -fsSL https://claude.ai/install.sh | bash
 ```
 
 ## 脚本会写入什么

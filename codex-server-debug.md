@@ -105,9 +105,9 @@ curl -I https://registry.npmjs.org
 如果服务器完全不能访问 GitHub，可以在本地电脑下载脚本后上传到服务器：
 
 ```bash
-scp "install-codex-relay-linux-macos.sh" user@server:/tmp/
+scp "installers/install-codex-relay-linux.sh" user@server:/tmp/
 ssh user@server
-bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
+bash "/tmp/install-codex-relay-linux.sh" --doctor
 ```
 
 ## 3. 修复 Node.js 和 npm
@@ -121,9 +121,9 @@ npm -v
 
 Node.js 官方文档建议使用当前受支持的 Node.js 版本运行 npm，并可用 `node -v`、`npm -v` 验证。对于服务器部署，建议优先使用 Node.js LTS。
 
-### 推荐方式：nvm
+### 推荐方式：系统包管理器或官方安装命令
 
-如果服务器系统较旧，优先用 nvm 装当前 LTS，而不是依赖系统源里的旧 Node.js：
+脚本会在需要 npm fallback 时优先用 Linux 原生包管理器或 NodeSource LTS 源安装 Node.js。也可以手动使用官方 Codex 安装命令：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
@@ -161,7 +161,7 @@ export NVM_DIR="$HOME/.nvm"
 确认 npm 可用后安装：
 
 ```bash
-npm i -g @openai/codex
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
 
 安装后验证：
@@ -172,7 +172,7 @@ codex --version
 codex
 ```
 
-如果 `npm i -g @openai/codex` 成功，但 `codex` 仍然提示命令不存在，通常是 npm 全局 bin 目录没有进 `PATH`。检查：
+如果 `curl -fsSL https://chatgpt.com/codex/install.sh | sh` 成功，但 `codex` 仍然提示命令不存在，通常是 npm 全局 bin 目录没有进 `PATH`。检查：
 
 ```bash
 npm bin -g 2>/dev/null || npm config get prefix
@@ -204,8 +204,8 @@ command -v codex
 能访问 GitHub 时：
 
 ```bash
-url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/install-codex-relay-linux-macos.sh"
-tmp="${TMPDIR:-/tmp}/install-codex-relay-linux-macos.sh"
+url="https://raw.githubusercontent.com/zbndwxxa791/codex-relay-installer/main/installers/install-codex-relay-linux.sh"
+tmp="${TMPDIR:-/tmp}/installers/install-codex-relay-linux.sh"
 curl -fsSL "$url" -o "$tmp"
 bash "$tmp" --doctor
 ```
@@ -310,7 +310,7 @@ export HTTPS_PROXY="..."
 那么 VS Code Codex 插件不一定能读到。请优先改成运行安装脚本或手动写 `~/.codex/config.toml`：
 
 ```bash
-bash "/tmp/install-codex-relay-linux-macos.sh" --no-model-picker --model "gpt-5.5"
+bash "/tmp/install-codex-relay-linux.sh" --no-model-picker --model "gpt-5.5"
 ```
 
 写完后，不要只重载终端。建议在本机 VS Code 里执行：
@@ -348,7 +348,7 @@ codex --version
 服务器没有 bash，或者当前环境 PATH 异常。先安装 bash，或用绝对路径：
 
 ```bash
-/bin/bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
+/bin/bash "/tmp/install-codex-relay-linux.sh" --doctor
 ```
 
 ### `sh: 1: Syntax error` 或 `set: Illegal option -o pipefail`
@@ -356,7 +356,7 @@ codex --version
 你用了 `sh` 执行脚本。改用 `bash`：
 
 ```bash
-bash "/tmp/install-codex-relay-linux-macos.sh"
+bash "/tmp/install-codex-relay-linux.sh"
 ```
 
 ### `curl: command not found`
@@ -439,7 +439,7 @@ npm config set https-proxy "$HTTPS_PROXY"
 Codex CLI 没装，或者 npm 全局 bin 目录不在 `PATH`。先执行：
 
 ```bash
-npm i -g @openai/codex
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
 command -v codex
 ```
 
@@ -455,7 +455,7 @@ command -v codex
 参数写错了。查看帮助：
 
 ```bash
-bash "/tmp/install-codex-relay-linux-macos.sh" --help
+bash "/tmp/install-codex-relay-linux.sh" --help
 ```
 
 ### `Permission denied`
@@ -463,14 +463,14 @@ bash "/tmp/install-codex-relay-linux-macos.sh" --help
 不要直接执行脚本文件，使用 bash 调用即可：
 
 ```bash
-bash "/tmp/install-codex-relay-linux-macos.sh"
+bash "/tmp/install-codex-relay-linux.sh"
 ```
 
 如果你必须直接执行：
 
 ```bash
-chmod +x "/tmp/install-codex-relay-linux-macos.sh"
-"/tmp/install-codex-relay-linux-macos.sh"
+chmod +x "/tmp/installers/install-codex-relay-linux.sh"
+"/tmp/installers/install-codex-relay-linux.sh"
 ```
 
 ### `No such file or directory`
@@ -484,7 +484,7 @@ ls -l /tmp
 然后用完整路径加引号执行：
 
 ```bash
-bash "/tmp/install-codex-relay-linux-macos.sh" --doctor
+bash "/tmp/install-codex-relay-linux.sh" --doctor
 ```
 
 ### HTTP 401 / 403
@@ -558,7 +558,7 @@ codex --version 2>/dev/null || true
 env | grep -i proxy || true
 curl -I https://raw.githubusercontent.com 2>&1 | head -20
 curl -I https://registry.npmjs.org 2>&1 | head -20
-bash "/tmp/install-codex-relay-linux-macos.sh" --doctor 2>&1 | tail -80
+bash "/tmp/install-codex-relay-linux.sh" --doctor 2>&1 | tail -80
 ```
 
-如果脚本不在 `/tmp/install-codex-relay-linux-macos.sh`，把最后一行路径换成实际保存位置。
+如果脚本不在 `/tmp/installers/install-codex-relay-linux.sh`，把最后一行路径换成实际保存位置。
